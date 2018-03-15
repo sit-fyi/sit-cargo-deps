@@ -1,6 +1,6 @@
 [package]
 name = "rouille"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Pierre Krieger <pierre.krieger1708@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/tomaka/rouille"
@@ -14,6 +14,7 @@ categories = ["web-programming::http-server", "web-programming::websocket"]
 default = ["gzip", "brotli"]
 brotli = ["brotli2"]
 gzip = ["deflate"]
+ssl = ["tiny_http/ssl"]
 
 [dependencies]
 base64 = "0.7.0"
