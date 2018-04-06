@@ -404,7 +404,7 @@
 //! ```
 //!
 //! Alternatively, if you have [`just`](https://github.com/casey/just) installed you can run the
-//! prebuilt recipies. *Not* using `just` is prfeclty fine as well, it simply bundles commands
+//! prebuilt recipies. *Not* using `just` is perfectly fine as well, it simply bundles commands
 //! automatically.
 //!
 //! For example, to test the code, as above simply run:
@@ -513,7 +513,7 @@
 //! this repository for more information.
 
 #![crate_type = "lib"]
-#![doc(html_root_url = "https://docs.rs/clap/2.29.4")]
+#![doc(html_root_url = "https://docs.rs/clap/2.31.2")]
 #![deny(missing_docs, missing_debug_implementations, missing_copy_implementations, trivial_casts,
         unused_import_braces, unused_allocation)]
 // Lints we'd like to deny but are currently failing for upstream crates
@@ -528,7 +528,7 @@
 #![cfg_attr(feature = "lints", allow(doc_markdown))]
 #![cfg_attr(feature = "lints", allow(explicit_iter_loop))]
 
-#[cfg(feature = "color")]
+#[cfg(all(feature = "color", not(target_os = "windows")))]
 extern crate ansi_term;
 #[cfg(feature = "color")]
 extern crate atty;
