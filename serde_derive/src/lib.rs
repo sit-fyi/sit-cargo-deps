@@ -22,24 +22,20 @@
 //!
 //! [https://serde.rs/derive.html]: https://serde.rs/derive.html
 
-#![doc(html_root_url = "https://docs.rs/serde_derive/1.0.35")]
-#![cfg_attr(feature = "cargo-clippy", allow(enum_variant_names, redundant_field_names,
-                                            too_many_arguments, used_underscore_binding))]
+#![doc(html_root_url = "https://docs.rs/serde_derive/1.0.27")]
+#![cfg_attr(feature = "cargo-clippy", allow(too_many_arguments))]
+#![cfg_attr(feature = "cargo-clippy", allow(used_underscore_binding))]
 // The `quote!` macro requires deep recursion.
-#![recursion_limit = "512"]
+#![recursion_limit = "192"]
 
 #[macro_use]
 extern crate quote;
-#[macro_use]
 extern crate syn;
 
 extern crate serde_derive_internals as internals;
 
 extern crate proc_macro;
-extern crate proc_macro2;
-
 use proc_macro::TokenStream;
-use syn::DeriveInput;
 
 #[macro_use]
 mod bound;
@@ -51,18 +47,18 @@ mod de;
 
 #[proc_macro_derive(Serialize, attributes(serde))]
 pub fn derive_serialize(input: TokenStream) -> TokenStream {
-    let input: DeriveInput = syn::parse(input).unwrap();
+    let input = syn::parse_derive_input(&input.to_string()).unwrap();
     match ser::expand_derive_serialize(&input) {
-        Ok(expanded) => expanded.into(),
+        Ok(expanded) => expanded.parse().unwrap(),
         Err(msg) => panic!(msg),
     }
 }
 
 #[proc_macro_derive(Deserialize, attributes(serde))]
 pub fn derive_deserialize(input: TokenStream) -> TokenStream {
-    let input: DeriveInput = syn::parse(input).unwrap();
+    let input = syn::parse_derive_input(&input.to_string()).unwrap();
     match de::expand_derive_deserialize(&input) {
-        Ok(expanded) => expanded.into(),
+        Ok(expanded) => expanded.parse().unwrap(),
         Err(msg) => panic!(msg),
     }
 }

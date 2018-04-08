@@ -16,8 +16,25 @@ impl<'a, 'b> FishGen<'a, 'b> {
 
     pub fn generate_to<W: Write>(&self, buf: &mut W) {
         let command = self.p.meta.bin_name.as_ref().unwrap();
-        let mut buffer = String::new();
-        gen_fish_inner(command, self, command, &mut buffer);
+
+        // function to detect subcommand
+        let detect_subcommand_function = r#"function __fish_using_command
+    set cmd (commandline -opc)
+    if [ (count $cmd) -eq (count $argv) ]
+        for i in (seq (count $argv))
+            if [ $cmd[$i] != $argv[$i] ]
+                return 1
+            end
+        end
+        return 0
+    end
+    return 1
+end
+
+"#.to_string();
+
+        let mut buffer = detect_subcommand_function;
+        gen_fish_inner(command, self, &command.to_string(), &mut buffer);
         w!(buf, buffer.as_bytes());
     }
 }
@@ -25,7 +42,7 @@ impl<'a, 'b> FishGen<'a, 'b> {
 // Escape string inside single quotes
 fn escape_string(string: &str) -> String { string.replace("\\", "\\\\").replace("'", "\\'") }
 
-fn gen_fish_inner(root_command: &str, comp_gen: &FishGen, subcommand: &str, buffer: &mut String) {
+fn gen_fish_inner(root_command: &str, comp_gen: &FishGen, parent_cmds: &str, buffer: &mut String) {
     debugln!("FishGen::gen_fish_inner;");
     // example :
     //
@@ -37,15 +54,13 @@ fn gen_fish_inner(root_command: &str, comp_gen: &FishGen, subcommand: &str, buff
     //      -a "{possible_arguments}"
     //      -r # if require parameter
     //      -f # don't use file completion
-    //      -n "__fish_use_subcommand"               # complete for command "myprog"
-    //      -n "__fish_seen_subcommand_from subcmd1" # complete for command "myprog subcmd1"
+    //      -n "__fish_using_command myprog subcmd1" # complete for command "myprog subcmd1"
 
-    let mut basic_template = format!("complete -c {} -n ", root_command);
-    if root_command == subcommand {
-        basic_template.push_str("\"__fish_use_subcommand\"");
-    } else {
-        basic_template.push_str(format!("\"__fish_seen_subcommand_from {}\"", subcommand).as_str());
-    }
+    let basic_template = format!(
+        "complete -c {} -n \"__fish_using_command {}\"",
+        root_command,
+        parent_cmds
+    );
 
     for option in comp_gen.p.opts() {
         let mut template = basic_template.clone();
@@ -94,6 +109,12 @@ fn gen_fish_inner(root_command: &str, comp_gen: &FishGen, subcommand: &str, buff
     // generate options of subcommands
     for subcommand in &comp_gen.p.subcommands {
         let sub_comp_gen = FishGen::new(&subcommand.p);
-        gen_fish_inner(root_command, &sub_comp_gen, &subcommand.to_string(), buffer);
+        // make new "parent_cmds" for different subcommands
+        let mut sub_parent_cmds = parent_cmds.to_string();
+        if !sub_parent_cmds.is_empty() {
+            sub_parent_cmds.push_str(" ");
+        }
+        sub_parent_cmds.push_str(&subcommand.p.meta.name);
+        gen_fish_inner(root_command, &sub_comp_gen, &sub_parent_cmds, buffer);
     }
 }

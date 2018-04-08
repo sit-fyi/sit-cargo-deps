@@ -10,16 +10,15 @@ use syn;
 use attr;
 use check;
 use Ctxt;
-use syn::punctuated::Punctuated;
 
 pub struct Container<'a> {
     pub ident: syn::Ident,
     pub attrs: attr::Container,
-    pub data: Data<'a>,
+    pub body: Body<'a>,
     pub generics: &'a syn::Generics,
 }
 
-pub enum Data<'a> {
+pub enum Body<'a> {
     Enum(Vec<Variant<'a>>),
     Struct(Style, Vec<Field<'a>>),
 }
@@ -34,8 +33,7 @@ pub struct Variant<'a> {
 pub struct Field<'a> {
     pub ident: Option<syn::Ident>,
     pub attrs: attr::Field,
-    pub ty: &'a syn::Type,
-    pub original: &'a syn::Field,
+    pub ty: &'a syn::Ty,
 }
 
 #[derive(Copy, Clone)]
@@ -48,45 +46,34 @@ pub enum Style {
 
 impl<'a> Container<'a> {
     pub fn from_ast(cx: &Ctxt, item: &'a syn::DeriveInput) -> Container<'a> {
-        let mut attrs = attr::Container::from_ast(cx, item);
+        let attrs = attr::Container::from_ast(cx, item);
 
-        let mut data = match item.data {
-            syn::Data::Enum(ref data) => {
-                Data::Enum(enum_from_ast(cx, &data.variants, attrs.default()))
+        let mut body = match item.body {
+            syn::Body::Enum(ref variants) => {
+                Body::Enum(enum_from_ast(cx, variants, &attrs.default()))
             }
-            syn::Data::Struct(ref data) => {
-                let (style, fields) = struct_from_ast(cx, &data.fields, None, attrs.default());
-                Data::Struct(style, fields)
-            }
-            syn::Data::Union(_) => {
-                panic!("Serde does not support derive for unions");
+            syn::Body::Struct(ref variant_data) => {
+                let (style, fields) = struct_from_ast(cx, variant_data, None, &attrs.default());
+                Body::Struct(style, fields)
             }
         };
 
-        let mut has_flatten = false;
-        match data {
-            Data::Enum(ref mut variants) => for variant in variants {
+        match body {
+            Body::Enum(ref mut variants) => for ref mut variant in variants {
                 variant.attrs.rename_by_rule(attrs.rename_all());
-                for field in &mut variant.fields {
+                for ref mut field in &mut variant.fields {
                     field.attrs.rename_by_rule(variant.attrs.rename_all());
                 }
             },
-            Data::Struct(_, ref mut fields) => for field in fields {
-                if field.attrs.flatten() {
-                    has_flatten = true;
-                }
+            Body::Struct(_, ref mut fields) => for field in fields {
                 field.attrs.rename_by_rule(attrs.rename_all());
             },
         }
 
-        if has_flatten {
-            attrs.mark_has_flatten();
-        }
-
         let item = Container {
-            ident: item.ident,
+            ident: item.ident.clone(),
             attrs: attrs,
-            data: data,
+            body: body,
             generics: &item.generics,
         };
         check::check(cx, &item);
@@ -94,13 +81,13 @@ impl<'a> Container<'a> {
     }
 }
 
-impl<'a> Data<'a> {
+impl<'a> Body<'a> {
     pub fn all_fields(&'a self) -> Box<Iterator<Item = &'a Field<'a>> + 'a> {
         match *self {
-            Data::Enum(ref variants) => {
+            Body::Enum(ref variants) => {
                 Box::new(variants.iter().flat_map(|variant| variant.fields.iter()))
             }
-            Data::Struct(_, ref fields) => Box::new(fields.iter()),
+            Body::Struct(_, ref fields) => Box::new(fields.iter()),
         }
     }
 
@@ -111,7 +98,7 @@ impl<'a> Data<'a> {
 
 fn enum_from_ast<'a>(
     cx: &Ctxt,
-    variants: &'a Punctuated<syn::Variant, Token![,]>,
+    variants: &'a [syn::Variant],
     container_default: &attr::Default,
 ) -> Vec<Variant<'a>> {
     variants
@@ -119,9 +106,9 @@ fn enum_from_ast<'a>(
         .map(|variant| {
             let attrs = attr::Variant::from_ast(cx, variant);
             let (style, fields) =
-                struct_from_ast(cx, &variant.fields, Some(&attrs), container_default);
+                struct_from_ast(cx, &variant.data, Some(&attrs), container_default);
             Variant {
-                ident: variant.ident,
+                ident: variant.ident.clone(),
                 attrs: attrs,
                 style: style,
                 fields: fields,
@@ -132,30 +119,30 @@ fn enum_from_ast<'a>(
 
 fn struct_from_ast<'a>(
     cx: &Ctxt,
-    fields: &'a syn::Fields,
+    data: &'a syn::VariantData,
     attrs: Option<&attr::Variant>,
     container_default: &attr::Default,
 ) -> (Style, Vec<Field<'a>>) {
-    match *fields {
-        syn::Fields::Named(ref fields) => (
+    match *data {
+        syn::VariantData::Struct(ref fields) => (
             Style::Struct,
-            fields_from_ast(cx, &fields.named, attrs, container_default),
+            fields_from_ast(cx, fields, attrs, container_default),
         ),
-        syn::Fields::Unnamed(ref fields) if fields.unnamed.len() == 1 => (
+        syn::VariantData::Tuple(ref fields) if fields.len() == 1 => (
             Style::Newtype,
-            fields_from_ast(cx, &fields.unnamed, attrs, container_default),
+            fields_from_ast(cx, fields, attrs, container_default),
         ),
-        syn::Fields::Unnamed(ref fields) => (
+        syn::VariantData::Tuple(ref fields) => (
             Style::Tuple,
-            fields_from_ast(cx, &fields.unnamed, attrs, container_default),
+            fields_from_ast(cx, fields, attrs, container_default),
         ),
-        syn::Fields::Unit => (Style::Unit, Vec::new()),
+        syn::VariantData::Unit => (Style::Unit, Vec::new()),
     }
 }
 
 fn fields_from_ast<'a>(
     cx: &Ctxt,
-    fields: &'a Punctuated<syn::Field, Token![,]>,
+    fields: &'a [syn::Field],
     attrs: Option<&attr::Variant>,
     container_default: &attr::Default,
 ) -> Vec<Field<'a>> {
@@ -163,10 +150,9 @@ fn fields_from_ast<'a>(
         .iter()
         .enumerate()
         .map(|(i, field)| Field {
-            ident: field.ident,
+            ident: field.ident.clone(),
             attrs: attr::Field::from_ast(cx, i, field, attrs, container_default),
             ty: &field.ty,
-            original: field,
         })
         .collect()
 }

@@ -42,36 +42,36 @@ Created by [gh-md-toc](https://github.com/ekalinin/github-markdown-toc)
 
 ## What's New
 
-Here's whats new in 2.31.2:
+Here's whats new in 2.29.4:
 
-* **Fish Completions:**  fixes a bug that only allowed a single completion in in Fish Shell
-* **AllowExternalSubcommands**: fixes a bug where external subcommands would be blocked by a similarly named subcomand
-* Fixes some typos in the `README.md`
+* **Overrides Self:**  fixes a bug where options with multiple values couldnt ever have multiple values ([d95907cf](https://github.com/kbknapp/clap-rs/commit/d95907cff6d011a901fe35fa00b0f4e18547a1fb))
 
-Here's whats new in 2.31.1:
+Here's whats new in 2.29.3:
 
-* **AllowMissingPositional:**  improves the ability of `AppSetting::AllowMissingPositional` to allow "skipping" to the last positional arg with the `--` operator
+* **Self Overrides:** now supports arguments which override themselves (Allows true shell aliases, config files, etc!)
+* **Requirements:**  fixes an issue where conflicting args would still show up as required and missing
+* Fixes a bug which disallows proper nesting of `--` for args that capture all values after the first `--`
+* **AppSettings::AllArgsOverrideSelf:**  adds a new convenience setting to allow all args to override themselves
 
-Here's whats new in 2.31.0:
+Here's whats new in 2.29.2:
 
-* **Arg Indices:**  adds the ability to query argument value indices
-  * implements an `Indices<Item=usize>` iterator
-  * adds the documentation for the arg index querying methods
-* **Improves PowerShell completions** - Uses the short help tool-tip for PowerShell completion scripts
-* Adds WASM support (clap now compiles on WASM!)
-* **Raw Args** adds a convenience function to `Arg` that allows implying all of `Arg::last` `Arg::allow_hyphen_values` and `Arg::multiple(true)`
-* **CONTRIBUTING.md:**  fix url to clippy upstream repo
-* **Values Documentation:**  improves the docs example of the Values iterator
-* Updates README.md to hint that the `wrap_help` feature is a thing
-* Use `codegen-units = 1` in release and bench profiles to improve bench performance
-* Fix some typos and markdown issues in the docs
+* **Many ZSH Completions Improvements** (Thanks to @segevfiner)
+  *  Positional arguments will default to file completion when not using specific values!
+  *  Implement postional argument possible values completion
+  *  Removes redundant code from output
+  *  Don't pass `-S` to `_arguments` if Zsh is too old
+  *  Fix completions with mixed positionals and subcommands
+  *  String escape possible values for options
 
-Here's whats new in 2.30.x:
 
-* **Bash Completions:**  instead of completing a generic option name, all bash completions fall back to file completions UNLESS `Arg::possible_values` was used
-* **YAML:** Adds a missing conversion from  `Arg::last` when instantiating from a YAML file
-* **Deps:**  No longer needlessly compiles `ansi_term` on Windows since its not used
-* **Help Message:** changes the `[values: foo bar baz]` array to `[possible values: foo bar baz]` for consistency with the API
+Here's whats new in 2.29.1:
+
+* Debloats clap by deduplicating logic and refactors for a ~57% decrease in code size! This is with zero functinoality lost, and a slight perf increase!
+* Change the bash completion script code generation to support hyphens.
+* Fix completion of long option values in ZSH completions
+* Fixes broken links in docs
+* Updates contributors list
+* Fixes the ripgrep benchmark by adding a value to a flag that expects it
 
 For full details, see [CHANGELOG.md](https://github.com/kbknapp/clap-rs/blob/master/CHANGELOG.md)
 
@@ -174,7 +174,7 @@ The following examples show a quick example of some of the very basic functional
 
  **NOTE:** All of these examples are functionally the same, but show different styles in which to use `clap`. These different styles are purely a matter of personal preference.
 
-The first example shows a method using the 'Builder Pattern' which allows more advanced configuration options (not shown in this small example), or even dynamically generating arguments when desired.
+The first example shows a method using the 'Builder Pattern' which allows more advanced configuration options (not shown in this small example), or even dynamically generating arguments when desired. The downside is it's more verbose.
 
 ```rust
 // (Full example with detailed comments in examples/01b_quick_example.rs)
@@ -244,7 +244,37 @@ fn main() {
 }
 ```
 
-One could also optionally decleare their CLI in YAML format and keep your Rust source tidy
+The next example shows a far less verbose method, but sacrifices some of the advanced configuration options (not shown in this small example). This method also takes a *very* minor runtime penalty.
+
+```rust
+// (Full example with detailed comments in examples/01a_quick_example.rs)
+//
+// This example demonstrates clap's "usage strings" method of creating arguments
+// which is less verbose
+extern crate clap;
+use clap::{Arg, App, SubCommand};
+
+fn main() {
+    let matches = App::new("myapp")
+                          .version("1.0")
+                          .author("Kevin K. <kbknapp@gmail.com>")
+                          .about("Does awesome things")
+                          .args_from_usage(
+                              "-c, --config=[FILE] 'Sets a custom config file'
+                              <INPUT>              'Sets the input file to use'
+                              -v...                'Sets the level of verbosity'")
+                          .subcommand(SubCommand::with_name("test")
+                                      .about("controls testing features")
+                                      .version("1.3")
+                                      .author("Someone E. <someone_else@other.com>")
+                                      .arg_from_usage("-d, --debug 'Print debug information'"))
+                          .get_matches();
+
+    // Same as previous example...
+}
+```
+
+This third method shows how you can use a YAML file to build your CLI and keep your Rust source tidy
 or support multiple localized translations by having different YAML files for each localization.
 
 First, create the `cli.yml` file to hold your CLI options, but it could be called anything we like:
@@ -282,7 +312,7 @@ subcommands:
 
 Since this feature requires additional dependencies that not everyone may want, it is *not* compiled in by default and we need to enable a feature flag in Cargo.toml:
 
-Simply change your `clap = "2.31"` to `clap = {version = "2.31", features = ["yaml"]}`.
+Simply change your `clap = "2.29"` to `clap = {version = "2.29", features = ["yaml"]}`.
 
 Finally we create our `main.rs` file just like we would have with the previous two examples:
 
@@ -301,6 +331,32 @@ fn main() {
     let matches = App::from_yaml(yaml).get_matches();
 
     // Same as previous examples...
+}
+```
+
+Last but not least there is a macro version, which is like a hybrid approach offering the runtime speed of the builder pattern (the first example), but without all the verbosity.
+
+```rust
+#[macro_use]
+extern crate clap;
+
+fn main() {
+    let matches = clap_app!(myapp =>
+        (version: "1.0")
+        (author: "Kevin K. <kbknapp@gmail.com>")
+        (about: "Does awesome things")
+        (@arg CONFIG: -c --config +takes_value "Sets a custom config file")
+        (@arg INPUT: +required "Sets the input file to use")
+        (@arg debug: -d ... "Sets the level of debugging information")
+        (@subcommand test =>
+            (about: "controls testing features")
+            (version: "1.3")
+            (author: "Someone E. <someone_else@other.com>")
+            (@arg verbose: -v --verbose "Print test information verbosely")
+        )
+    ).get_matches();
+
+    // Same as before...
 }
 ```
 
@@ -332,13 +388,6 @@ SUBCOMMANDS:
 ```
 
 **NOTE:** You could also run `myapp test --help` or `myapp help test` to see the help message for the `test` subcommand.
-
-There are also two other methods to create CLIs. Which style you choose is largely a matter of personal preference. The two other methods are:
-
-* Using [usage strings (examples/01a_quick_example.rs)](examples/01a_quick_example.rs) similar to (but not exact) docopt style usage statements. This is far less verbose than the above methods, but incurs a slight runtime penalty.
-* Using [a macro (examples/01c_quick_example.rs)](examples/01c_quick_example.rs) which is like a hybrid of the builder and usage string style. It's less verbose, but doesn't incur the runtime penalty of the usage string style. The downside is that it's harder to debug, and more opaque.
-
-Examples of each method can be found in the [examples/](examples) directory of this repository.
 
 ## Try it!
 
@@ -383,7 +432,7 @@ For full usage, add `clap` as a dependency in your `Cargo.toml` () to use from c
 
 ```toml
 [dependencies]
-clap = "~2.31"
+clap = "~2.29"
 ```
 
 (**note**: If you are concerned with supporting a minimum version of Rust that is *older* than the current stable Rust minus 2 stable releases, it's recommended to use the `~major.minor.patch` style versions in your `Cargo.toml` which will only update the patch version automatically. For more information see the [Compatibility Policy](#compatibility-policy))
@@ -399,14 +448,14 @@ Then run `cargo build` or `cargo update && cargo build` for your project.
 #### Features enabled by default
 
 * **"suggestions"**: Turns on the `Did you mean '--myoption'?` feature for when users make typos. (builds dependency `strsim`)
-* **"color"**: Turns on colored error messages. This feature only works on non-Windows OSs. (builds dependency `ansi-term` only on non-Windows targets)
+* **"color"**: Turns on colored error messages. This feature only works on non-Windows OSs. (builds dependency `ansi-term`)
 * **"vec_map"**: Use [`VecMap`](https://crates.io/crates/vec_map) internally instead of a [`BTreeMap`](https://doc.rust-lang.org/stable/std/collections/struct.BTreeMap.html). This feature provides a _slight_ performance improvement. (builds dependency `vec_map`)
 
 To disable these, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies.clap]
-version = "2.31"
+version = "2.29"
 default-features = false
 ```
 
@@ -414,7 +463,7 @@ You can also selectively enable only the features you'd like to include, by addi
 
 ```toml
 [dependencies.clap]
-version = "2.31"
+version = "2.29"
 default-features = false
 
 # Cherry-pick the features you'd like to use
@@ -425,7 +474,6 @@ features = [ "suggestions", "color" ]
 
 * **"yaml"**: Enables building CLIs from YAML documents. (builds dependency `yaml-rust`)
 * **"unstable"**: Enables unstable `clap` features that may change from release to release
-* **"wrap_help"**: Turns on the help text wrapping feature, based on the terminal size. (builds dependency `term-size`)
 
 ### Dependencies Tree
 
@@ -463,7 +511,7 @@ In order to keep from being surprised of breaking changes, it is **highly** reco
 
 ```toml
 [dependencies]
-clap = "~2.31"
+clap = "~2.29"
 ```
 
 This will cause *only* the patch version to be updated upon a `cargo update` call, and therefore cannot break due to new features, or bumped minimum versions of Rust.
@@ -480,11 +528,11 @@ Right now Cargo's version resolution is pretty naive, it's just a brute-force se
 
 # In one Cargo.toml
 [dependencies]
-clap = "~2.31.2"
+clap = "~2.29.0"
 
 # In another Cargo.toml
 [dependencies]
-clap = "2.31"
+clap = "2.29"
 ```
 
 This is inherently an unresolvable crate graph in Cargo right now. Cargo requires there's only one major version of a crate, and being in the same workspace these two crates must share a version. This is impossible in this location, though, as these version constraints cannot be met.
@@ -504,11 +552,6 @@ Upon bumping the minimum version of Rust (assuming it's within the stable-2 rang
  * The breaking change is to fix a security concern
  * The breaking change is to be fixing a bug (i.e. relying on a bug as a feature)
  * The breaking change is a feature isn't used in the wild, or all users of said feature have given approval *prior* to the change
-
-#### Compatibility with Wasm
-
-A best effort is made to ensure that `clap` will work on projects targeting `wasm32-unknown-unknown`. However there is no dedicated CI build
-covering this specific target.
 
 ## License
 

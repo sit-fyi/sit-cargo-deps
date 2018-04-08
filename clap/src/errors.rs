@@ -13,7 +13,6 @@ use fmt::{ColorWhen, Colorizer, ColorizerOption};
 use suggestions;
 
 /// Short hand for [`Result`] type
-///
 /// [`Result`]: https://doc.rust-lang.org/std/result/enum.Result.html
 pub type Result<T> = StdResult<T, Error>;
 
@@ -78,7 +77,7 @@ pub enum ErrorKind {
 
     /// Occurs when the user provides an unrecognized [`SubCommand`] which either
     /// doesn't meet the threshold for being similar enough to an existing subcommand,
-    /// or the 'suggestions' feature is disabled.
+    /// or the 'sggestions' feature is disabled.
     /// Otherwise the more detailed [`InvalidSubcommand`] error is returned.
     ///
     /// This error typically happens when passing additional subcommand names to the `help`
@@ -295,7 +294,7 @@ pub enum ErrorKind {
     /// Occurs when the user provides a value containing invalid UTF-8 for an argument and
     /// [`AppSettings::StrictUtf8`] is set.
     ///
-    /// # Platform Specific
+    /// # Platform Speicific
     ///
     /// Non-Windows platforms only (such as Linux, Unix, OSX, etc.)
     ///
@@ -373,7 +372,7 @@ pub enum ErrorKind {
 /// Command Line Argument Parser Error
 #[derive(Debug)]
 pub struct Error {
-    /// Formatted error message
+    /// Formated error message
     pub message: String,
     /// The type of error
     pub kind: ErrorKind,
@@ -497,7 +496,7 @@ impl Error {
         Error {
             message: format!(
                 "{} '{}' isn't a valid value for '{}'\n\t\
-                 [possible values: {}]\n\
+                 [values: {}]\n\
                  {}\n\n\
                  {}\n\n\
                  For more information try {}",
