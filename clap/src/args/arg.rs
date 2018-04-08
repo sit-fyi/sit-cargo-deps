@@ -2,9 +2,9 @@
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::ffi::{OsStr, OsString};
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_arch = "wasm32"))]
 use osstringext::OsStrExt3;
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
 use std::os::unix::ffi::OsStrExt;
 use std::env;
 
@@ -122,6 +122,7 @@ impl<'a, 'b> Arg<'a, 'b> {
                 "value_name" => yaml_to_str!(a, v, value_name),
                 "use_delimiter" => yaml_to_bool!(a, v, use_delimiter),
                 "allow_hyphen_values" => yaml_to_bool!(a, v, allow_hyphen_values),
+                "last" => yaml_to_bool!(a, v, last),
                 "require_delimiter" => yaml_to_bool!(a, v, require_delimiter),
                 "value_delimiter" => yaml_to_str!(a, v, value_delimiter),
                 "required_unless" => yaml_to_str!(a, v, required_unless),
@@ -146,8 +147,7 @@ impl<'a, 'b> Arg<'a, 'b> {
                 }
                 s => panic!(
                     "Unknown Arg setting '{}' in YAML file for arg '{}'",
-                    s,
-                    name_str
+                    s, name_str
                 ),
             }
         }
@@ -1280,7 +1280,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// ```
     ///
     /// A safe thing to do if you'd like to support an option which supports multiple values, but
-    /// also is "overridable" by itself, is to use `use_delimiter(false)` and *not* use 
+    /// also is "overridable" by itself, is to use `use_delimiter(false)` and *not* use
     /// `multiple(true)` while telling users to seperate values with a comma (i.e. `val1,val2`)
     ///
     /// ```
@@ -1979,7 +1979,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// **WARNING:**
     ///
     /// When using args with `multiple(true)` on [options] or [positionals] (i.e. those args that
-    /// accept values) and [subcommands], one needs to consider the posibility of an argument value
+    /// accept values) and [subcommands], one needs to consider the possibility of an argument value
     /// being the same as a valid subcommand. By default `clap` will parse the argument in question
     /// as a value *only if* a value is possible at that moment. Otherwise it will be parsed as a
     /// subcommand. In effect, this means using `multiple(true)` with no additional parameters and
@@ -2049,7 +2049,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// let files: Vec<_> = m.values_of("file").unwrap().collect();
     /// assert_eq!(files, ["file1", "file2", "file3"]);
     /// ```
-    /// This is functionally equivilant to the example above
+    /// This is functionally equivalent to the example above
     ///
     /// ```rust
     /// # use clap::{App, Arg};
@@ -2220,7 +2220,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// # ;
     /// ```
     ///
-    /// For example, assume an appliction with two subcommands, and you'd like to define a
+    /// For example, assume an application with two subcommands, and you'd like to define a
     /// `--verbose` flag that can be called on any of the subcommands and parent, but you don't
     /// want to clutter the source with three duplicate [`Arg`] definitions.
     ///
@@ -2727,9 +2727,9 @@ impl<'a, 'b> Arg<'a, 'b> {
     ///
     /// **NOTE:** This does *not* implicitly set [`Arg::multiple(true)`]. This is because
     /// `-o val -o val` is multiple occurrences but a single value and `-o val1 val2` is a single
-    /// occurence with multiple values. For positional arguments this **does** set
+    /// occurrence with multiple values. For positional arguments this **does** set
     /// [`Arg::multiple(true)`] because there is no way to determine the difference between multiple
-    /// occurences and multiple values.
+    /// occurrences and multiple values.
     ///
     /// # Examples
     ///
@@ -2790,9 +2790,9 @@ impl<'a, 'b> Arg<'a, 'b> {
     ///
     /// **NOTE:** This does not implicitly set [`Arg::multiple(true)`]. This is because
     /// `-o val -o val` is multiple occurrences but a single value and `-o val1 val2` is a single
-    /// occurence with multiple values. For positional arguments this **does** set
+    /// occurrence with multiple values. For positional arguments this **does** set
     /// [`Arg::multiple(true)`] because there is no way to determine the difference between multiple
-    /// occurences and multiple values.
+    /// occurrences and multiple values.
     ///
     /// # Examples
     ///
@@ -3187,7 +3187,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// **NOTE:** This implicitly sets [`Arg::takes_value(true)`].
     ///
     /// **NOTE:** This setting effectively disables `AppSettings::ArgRequiredElseHelp` if used in
-    /// conjuction as it ensures that some argument will always be present.
+    /// conjunction as it ensures that some argument will always be present.
     ///
     /// # Examples
     ///
@@ -3429,7 +3429,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// ```
     ///
     /// We can also see that these values are applied in order, and if more than one condition is
-    /// true, only the first evaluatd "wins"
+    /// true, only the first evaluated "wins"
     ///
     /// ```rust
     /// # use clap::{App, Arg};
@@ -3484,7 +3484,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     /// will return `0` even though the [`ArgMatches::value_of`] will return the default specified.
     ///
     /// **NOTE:** If the user *does not* use this argument at runtime [`ArgMatches::is_present`] will
-    /// return `true` if the variable is present in the environemnt . If you wish to determine whether
+    /// return `true` if the variable is present in the environment . If you wish to determine whether
     /// the argument was used at runtime or not, consider [`ArgMatches::occurrences_of`] which will
     /// return `0` if the argument was *not* used at runtime.
     ///
@@ -3575,7 +3575,9 @@ impl<'a, 'b> Arg<'a, 'b> {
     ///
     /// assert_eq!(m.values_of("flag").unwrap().collect::<Vec<_>>(), vec!["env1", "env2"]);
     /// ```
-    pub fn env(self, name: &'a str) -> Self { self.env_os(OsStr::new(name)) }
+    pub fn env(self, name: &'a str) -> Self {
+        self.env_os(OsStr::new(name))
+    }
 
     /// Specifies that if the value is not passed in as an argument, that it should be retrieved
     /// from the environment if available in the exact same manner as [`Arg::env`] only using
@@ -3588,7 +3590,7 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     /// @TODO @p2 @docs @release: write docs
-    pub fn hide_env_values(self, hide: bool) -> Self { 
+    pub fn hide_env_values(self, hide: bool) -> Self {
         if hide {
             self.set(ArgSettings::HideEnvValues)
         } else {
@@ -3710,9 +3712,34 @@ impl<'a, 'b> Arg<'a, 'b> {
         self
     }
 
+    /// Indicates that all parameters passed after this should not be parsed
+    /// individually, but rather passed in their entirety. It is worth noting
+    /// that setting this requires all values to come after a `--` to indicate they
+    /// should all be captured. For example:
+    ///
+    /// ```notrust
+    /// --foo something -- -v -v -v -b -b -b --baz -q -u -x
+    /// ```
+    /// Will result in everything after `--` to be considered one raw argument. This behavior
+    /// may not be exactly what you are expecting and using [`AppSettings::TrailingVarArg`]
+    /// may be more appropriate.
+    ///
+    /// **NOTE:** Implicitly sets [`Arg::multiple(true)`], [`Arg::allow_hyphen_values(true)`], and
+    /// [`Arg::last(true)`] when set to `true`
+    ///
+    /// [`Arg::multiple(true)`]: ./struct.Arg.html#method.multiple
+    /// [`Arg::allow_hyphen_values(true)`]: ./struct.Arg.html#method.allow_hyphen_values
+    /// [`Arg::last(true)`]: ./struct.Arg.html#method.last
+    /// [`AppSettings::TrailingVarArg`]: ./enum.AppSettings.html#variant.TrailingVarArg
+    pub fn raw(self, raw: bool) -> Self {
+        self.multiple(raw).allow_hyphen_values(raw).last(raw)
+    }
+
     /// Checks if one of the [`ArgSettings`] settings is set for the argument
     /// [`ArgSettings`]: ./enum.ArgSettings.html
-    pub fn is_set(&self, s: ArgSettings) -> bool { self.b.is_set(s) }
+    pub fn is_set(&self, s: ArgSettings) -> bool {
+        self.b.is_set(s)
+    }
 
     /// Sets one of the [`ArgSettings`] settings for the argument
     /// [`ArgSettings`]: ./enum.ArgSettings.html
@@ -3729,10 +3756,14 @@ impl<'a, 'b> Arg<'a, 'b> {
     }
 
     #[doc(hidden)]
-    pub fn setb(&mut self, s: ArgSettings) { self.b.set(s); }
+    pub fn setb(&mut self, s: ArgSettings) {
+        self.b.set(s);
+    }
 
     #[doc(hidden)]
-    pub fn unsetb(&mut self, s: ArgSettings) { self.b.unset(s); }
+    pub fn unsetb(&mut self, s: ArgSettings) {
+        self.b.unset(s);
+    }
 }
 
 impl<'a, 'b, 'z> From<&'z Arg<'a, 'b>> for Arg<'a, 'b> {
@@ -3748,5 +3779,7 @@ impl<'a, 'b, 'z> From<&'z Arg<'a, 'b>> for Arg<'a, 'b> {
 }
 
 impl<'n, 'e> PartialEq for Arg<'n, 'e> {
-    fn eq(&self, other: &Arg<'n, 'e>) -> bool { self.b == other.b }
+    fn eq(&self, other: &Arg<'n, 'e>) -> bool {
+        self.b == other.b
+    }
 }
