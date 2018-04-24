@@ -13,8 +13,8 @@
 #![allow(bad_style, overflowing_literals, improper_ctypes)]
 #![crate_type = "rlib"]
 #![crate_name = "libc"]
-#![cfg_attr(dox, feature(no_core, lang_items))]
-#![cfg_attr(dox, no_core)]
+#![cfg_attr(cross_platform_docs, feature(no_core, lang_items))]
+#![cfg_attr(cross_platform_docs, no_core)]
 #![doc(html_logo_url = "https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png",
        html_favicon_url = "https://doc.rust-lang.org/favicon.ico")]
 
@@ -72,13 +72,16 @@
 #![cfg_attr(target_os = "dragonfly", doc(
     html_root_url = "https://doc.rust-lang.org/libc/x86_64-unknown-dragonfly"
 ))]
+#![cfg_attr(target_os = "solaris", doc(
+    html_root_url = "https://doc.rust-lang.org/libc/x86_64-sun-solaris"
+))]
 #![cfg_attr(all(target_os = "emscripten", target_arch = "asmjs"), doc(
     html_root_url = "https://doc.rust-lang.org/libc/asmjs-unknown-emscripten"
 ))]
 #![cfg_attr(all(target_os = "emscripten", target_arch = "wasm32"), doc(
     html_root_url = "https://doc.rust-lang.org/libc/wasm32-unknown-emscripten"
 ))]
-#![cfg_attr(all(target_os = "linux", target_arch = "xparc64"), doc(
+#![cfg_attr(all(target_os = "linux", target_arch = "sparc64"), doc(
     html_root_url = "https://doc.rust-lang.org/libc/sparc64-unknown-linux-gnu"
 ))]
 
@@ -94,7 +97,7 @@
 
 #![cfg_attr(not(feature = "use_std"), no_std)]
 
-#[cfg(all(not(dox), feature = "use_std"))]
+#[cfg(all(not(cross_platform_docs), feature = "use_std"))]
 extern crate std as core;
 
 #[macro_use] mod macros;
@@ -147,6 +150,9 @@ cfg_if! {
 
         pub enum FILE {}
         pub enum fpos_t {} // TODO: fill this out with a struct
+
+        pub const INT_MIN: c_int = -2147483648;
+        pub const INT_MAX: c_int = 2147483647;
 
         extern {
             pub fn isalnum(c: c_int) -> c_int;
