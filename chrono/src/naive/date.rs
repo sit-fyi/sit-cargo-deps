@@ -3,9 +3,9 @@
 
 //! ISO 8601 calendar date without timezone.
 
-use std::{str, fmt};
+use std::{str, fmt, hash};
 use std::ops::{Add, Sub, AddAssign, SubAssign};
-use num_traits::ToPrimitive;
+use num::traits::ToPrimitive;
 use oldtime::Duration as OldDuration;
 
 use {Weekday, Datelike};
@@ -93,7 +93,7 @@ const MAX_BITS: usize = 44;
 /// The year number is same to that of the [calendar date](#calendar-date).
 ///
 /// This is currently the internal format of Chrono's date types.
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct NaiveDate {
     ymdf: DateImpl, // (year << 13) | of
 }
@@ -400,7 +400,7 @@ impl NaiveDate {
     /// ~~~~
     pub fn from_num_days_from_ce_opt(days: i32) -> Option<NaiveDate> {
         let days = days + 365; // make December 31, 1 BCE equal to day 0
-        let (year_div_400, cycle) = div_mod_floor(days, 146_097);
+        let (year_div_400, cycle) = div_mod_floor(days, 146097);
         let (year_mod_400, ordinal) = internals::cycle_to_yo(cycle as u32);
         let flags = YearFlags::from_year_mod_400(year_mod_400 as i32);
         NaiveDate::from_of(year_div_400 * 400 + year_mod_400 as i32,
@@ -683,7 +683,7 @@ impl NaiveDate {
     /// Returns the packed ordinal-flags.
     #[inline]
     fn of(&self) -> Of {
-        Of((self.ymdf & 0b1_1111_1111_1111) as u32)
+        Of((self.ymdf & 0b1111_11111_1111) as u32)
     }
 
     /// Makes a new `NaiveDate` with the packed month-day-flags changed.
@@ -701,7 +701,7 @@ impl NaiveDate {
     fn with_of(&self, of: Of) -> Option<NaiveDate> {
         if of.valid() {
             let Of(of) = of;
-            Some(NaiveDate { ymdf: (self.ymdf & !0b1_1111_1111_1111) | of as DateImpl })
+            Some(NaiveDate { ymdf: (self.ymdf & !0b111111111_1111) | of as DateImpl })
         } else {
             None
         }
@@ -808,7 +808,7 @@ impl NaiveDate {
         let (mut year_div_400, year_mod_400) = div_mod_floor(year, 400);
         let cycle = internals::yo_to_cycle(year_mod_400 as u32, self.of().ordinal());
         let cycle = try_opt!((cycle as i32).checked_add(try_opt!(rhs.num_days().to_i32())));
-        let (cycle_div_400y, cycle) = div_mod_floor(cycle, 146_097);
+        let (cycle_div_400y, cycle) = div_mod_floor(cycle, 146097);
         year_div_400 += cycle_div_400y;
 
         let (year_mod_400, ordinal) = internals::cycle_to_yo(cycle as u32);
@@ -844,7 +844,7 @@ impl NaiveDate {
         let (mut year_div_400, year_mod_400) = div_mod_floor(year, 400);
         let cycle = internals::yo_to_cycle(year_mod_400 as u32, self.of().ordinal());
         let cycle = try_opt!((cycle as i32).checked_sub(try_opt!(rhs.num_days().to_i32())));
-        let (cycle_div_400y, cycle) = div_mod_floor(cycle, 146_097);
+        let (cycle_div_400y, cycle) = div_mod_floor(cycle, 146097);
         year_div_400 += cycle_div_400y;
 
         let (year_mod_400, ordinal) = internals::cycle_to_yo(cycle as u32);
@@ -883,9 +883,9 @@ impl NaiveDate {
         let year2 = rhs.year();
         let (year1_div_400, year1_mod_400) = div_mod_floor(year1, 400);
         let (year2_div_400, year2_mod_400) = div_mod_floor(year2, 400);
-        let cycle1 = i64::from(internals::yo_to_cycle(year1_mod_400 as u32, self.of().ordinal()));
-        let cycle2 = i64::from(internals::yo_to_cycle(year2_mod_400 as u32, rhs.of().ordinal()));
-        OldDuration::days((i64::from(year1_div_400) - i64::from(year2_div_400)) * 146_097 +
+        let cycle1 = internals::yo_to_cycle(year1_mod_400 as u32, self.of().ordinal()) as i64;
+        let cycle2 = internals::yo_to_cycle(year2_mod_400 as u32, rhs.of().ordinal()) as i64;
+        OldDuration::days((year1_div_400 as i64 - year2_div_400 as i64) * 146097 +
                           (cycle1 - cycle2))
     }
 
@@ -1302,6 +1302,14 @@ impl Datelike for NaiveDate {
     }
 }
 
+/// `NaiveDate` can be used as a key to the hash maps.
+impl hash::Hash for NaiveDate {
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        // don't need to strip flags, as we can safely assume that it is correct
+        self.ymdf.hash(state);
+    }
+}
+
 /// An addition of `Duration` to `NaiveDate` discards the fractional days,
 /// rounding to the closest integral number of days towards `Duration::zero()`.
 ///
@@ -1382,42 +1390,6 @@ impl SubAssign<OldDuration> for NaiveDate {
     #[inline]
     fn sub_assign(&mut self, rhs: OldDuration) {
         *self = self.sub(rhs);
-    }
-}
-
-/// Subtracts another `NaiveDate` from the current date.
-/// Returns a `Duration` of integral numbers.
-/// 
-/// This does not overflow or underflow at all,
-/// as all possible output fits in the range of `Duration`.
-///
-/// The implementation is a wrapper around
-/// [`NaiveDate::signed_duration_since`](#method.signed_duration_since).
-///
-/// # Example
-///
-/// ~~~~
-/// # extern crate chrono; extern crate time; fn main() {
-/// use chrono::NaiveDate;
-/// use time::Duration;
-///
-/// let from_ymd = NaiveDate::from_ymd;
-///
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(2014, 1, 1), Duration::zero());
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(2013, 12, 31), Duration::days(1));
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(2014, 1, 2), Duration::days(-1));
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(2013, 9, 23), Duration::days(100));
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(2013, 1, 1), Duration::days(365));
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(2010, 1, 1), Duration::days(365*4 + 1));
-/// assert_eq!(from_ymd(2014, 1, 1) - from_ymd(1614, 1, 1), Duration::days(365*400 + 97));
-/// # }
-/// ~~~~
-impl Sub<NaiveDate> for NaiveDate {
-    type Output = OldDuration;
-
-    #[inline]
-    fn sub(self, rhs: NaiveDate) -> OldDuration {
-        self.signed_duration_since(rhs)
     }
 }
 

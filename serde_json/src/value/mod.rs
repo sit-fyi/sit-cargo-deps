@@ -109,11 +109,10 @@
 
 use std::fmt::{self, Debug};
 use std::i64;
-use std::mem;
 use std::str;
 
-use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
+use serde::de::DeserializeOwned;
 
 use error::Error;
 pub use map::Map;
@@ -210,12 +209,24 @@ pub enum Value {
 impl Debug for Value {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Value::Null => formatter.debug_tuple("Null").finish(),
-            Value::Bool(v) => formatter.debug_tuple("Bool").field(&v).finish(),
-            Value::Number(ref v) => Debug::fmt(v, formatter),
-            Value::String(ref v) => formatter.debug_tuple("String").field(v).finish(),
-            Value::Array(ref v) => formatter.debug_tuple("Array").field(v).finish(),
-            Value::Object(ref v) => formatter.debug_tuple("Object").field(v).finish(),
+            Value::Null => {
+                formatter.debug_tuple("Null").finish()
+            }
+            Value::Bool(v) => {
+                formatter.debug_tuple("Bool").field(&v).finish()
+            }
+            Value::Number(ref v) => {
+                Debug::fmt(v, formatter)
+            }
+            Value::String(ref v) => {
+                formatter.debug_tuple("String").field(v).finish()
+            }
+            Value::Array(ref v) => {
+                formatter.debug_tuple("Array").field(v).finish()
+            }
+            Value::Object(ref v) => {
+                formatter.debug_tuple("Object").field(v).finish()
+            }
         }
     }
 }
@@ -839,6 +850,7 @@ impl Value {
     /// extern crate serde_json;
     ///
     /// use serde_json::Value;
+    /// use std::mem;
     ///
     /// fn main() {
     ///     let s = r#"{"x": 1.0, "y": 2.0}"#;
@@ -852,7 +864,7 @@ impl Value {
     ///     assert_eq!(value.pointer("/x"), Some(&1.5.into()));
     ///
     ///     // "Steal" ownership of a value. Can replace with any valid Value.
-    ///     let old_x = value.pointer_mut("/x").map(Value::take).unwrap();
+    ///     let old_x = value.pointer_mut("/x").map(|x| mem::replace(x, Value::Null)).unwrap();
     ///     assert_eq!(old_x, 1.5);
     ///     assert_eq!(value.pointer("/x").unwrap(), &Value::Null);
     /// }
@@ -888,22 +900,6 @@ impl Value {
             }
         }
         Some(target)
-    }
-
-    /// Takes the value out of the `Value`, leaving a `Null` in its place.
-    ///
-    /// ```rust
-    /// # #[macro_use]
-    /// # extern crate serde_json;
-    /// #
-    /// # fn main() {
-    /// let mut v = json!({ "x": "y" });
-    /// assert_eq!(v["x"].take(), json!("y"));
-    /// assert_eq!(v, json!({ "x": null }));
-    /// # }
-    /// ```
-    pub fn take(&mut self) -> Value {
-        mem::replace(self, Value::Null)
     }
 }
 
@@ -948,11 +944,11 @@ impl Default for Value {
     }
 }
 
-mod de;
-mod from;
 mod index;
 mod partial_eq;
+mod from;
 mod ser;
+mod de;
 
 /// Convert a `T` into `serde_json::Value` which is an enum that can represent
 /// any valid JSON data.

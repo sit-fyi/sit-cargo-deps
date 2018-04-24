@@ -1,5 +1,5 @@
 # crc [![Build Status](https://travis-ci.org/mrhooray/crc-rs.svg?branch=master)](https://travis-ci.org/mrhooray/crc-rs)
-> Rust implementation of CRC(16, 32, 64) with support of various standards
+> Rust implementation of CRC(32, 64) with support of various standards
 
 * [Crate](https://crates.io/crates/crc)
 * [Documentation](https://docs.rs/crc/)
@@ -22,24 +22,6 @@ git = "https://github.com/mrhooray/crc-rs"
 Add this to crate root
 ```rust
 extern crate crc;
-```
-
-### Compute CRC16
-```rust
-use crc::{crc16, Hasher16};
-
-assert_eq!(crc16::checksum_x25(b"123456789"), 0x906e);
-assert_eq!(crc16::checksum_usb(b"123456789"), 0xb4c8);
-
-// use provided or custom polynomial
-let mut digest = crc16::Digest::new(crc16::X25);
-digest.write(b"123456789");
-assert_eq!(digest.sum16(), 0x906e);
-
-// with initial
-let mut digest = crc16::Digest::new_with_initial(crc16::X25, 0u16);
-digest.write(b"123456789");
-assert_eq!(digest.sum16(), 0x906e);
 ```
 
 ### Compute CRC32

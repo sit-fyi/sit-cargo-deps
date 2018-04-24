@@ -470,11 +470,7 @@ impl<'de> Deserialize<'de> for CString {
 }
 
 macro_rules! forwarded_impl {
-    (
-        $(#[doc = $doc:tt])*
-        ( $($id: ident),* ), $ty: ty, $func: expr
-    ) => {
-        $(#[doc = $doc])*
+    (( $($id: ident),* ), $ty: ty, $func: expr) => {
         impl<'de $(, $id : Deserialize<'de>,)*> Deserialize<'de> for $ty {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
@@ -1077,7 +1073,7 @@ map_impl!(
 
 #[cfg(feature = "std")]
 macro_rules! parse_ip_impl {
-    ($ty:ty; $size:expr) => {
+    ($ty:ty; $size: expr) => {
         impl<'de> Deserialize<'de> for $ty {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
@@ -1091,7 +1087,7 @@ macro_rules! parse_ip_impl {
                 }
             }
         }
-    };
+    }
 }
 
 #[cfg(feature = "std")]
@@ -1234,7 +1230,7 @@ parse_ip_impl!(net::Ipv6Addr; 16);
 
 #[cfg(feature = "std")]
 macro_rules! parse_socket_impl {
-    ($ty:ty, $new:expr) => {
+    ($ty:ty, $new: expr) => {
         impl<'de> Deserialize<'de> for $ty {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
@@ -1248,7 +1244,7 @@ macro_rules! parse_socket_impl {
                 }
             }
         }
-    };
+    }
 }
 
 #[cfg(feature = "std")]
@@ -1276,7 +1272,10 @@ parse_socket_impl!(net::SocketAddrV4, net::SocketAddrV4::new);
 
 #[cfg(feature = "std")]
 parse_socket_impl!(net::SocketAddrV6, |ip, port| net::SocketAddrV6::new(
-    ip, port, 0, 0
+    ip,
+    port,
+    0,
+    0
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1433,28 +1432,10 @@ forwarded_impl!((T), Box<[T]>, Vec::into_boxed_slice);
 forwarded_impl!((), Box<str>, String::into_boxed_str);
 
 #[cfg(all(not(feature = "unstable"), feature = "rc", any(feature = "std", feature = "alloc")))]
-forwarded_impl! {
-    /// This impl requires the [`"rc"`] Cargo feature of Serde.
-    ///
-    /// Deserializing a data structure containing `Arc` will not attempt to
-    /// deduplicate `Arc` references to the same data. Every deserialized `Arc`
-    /// will end up with a strong count of 1.
-    ///
-    /// [`"rc"`]: https://serde.rs/feature-flags.html#-features-rc
-    (T), Arc<T>, Arc::new
-}
+forwarded_impl!((T), Arc<T>, Arc::new);
 
 #[cfg(all(not(feature = "unstable"), feature = "rc", any(feature = "std", feature = "alloc")))]
-forwarded_impl! {
-    /// This impl requires the [`"rc"`] Cargo feature of Serde.
-    ///
-    /// Deserializing a data structure containing `Rc` will not attempt to
-    /// deduplicate `Rc` references to the same data. Every deserialized `Rc`
-    /// will end up with a strong count of 1.
-    ///
-    /// [`"rc"`]: https://serde.rs/feature-flags.html#-features-rc
-    (T), Rc<T>, Rc::new
-}
+forwarded_impl!((T), Rc<T>, Rc::new);
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 impl<'de, 'a, T: ?Sized> Deserialize<'de> for Cow<'a, T>
@@ -1475,11 +1456,7 @@ where
 
 #[cfg(all(feature = "unstable", feature = "rc", any(feature = "std", feature = "alloc")))]
 macro_rules! box_forwarded_impl {
-    (
-        $(#[doc = $doc:tt])*
-        $t:ident
-    ) => {
-        $(#[doc = $doc])*
+    ($t:ident) => {
         impl<'de, T: ?Sized> Deserialize<'de> for $t<T>
         where
             Box<T>: Deserialize<'de>,
@@ -1491,32 +1468,14 @@ macro_rules! box_forwarded_impl {
                 Box::deserialize(deserializer).map(Into::into)
             }
         }
-    };
+    }
 }
 
 #[cfg(all(feature = "unstable", feature = "rc", any(feature = "std", feature = "alloc")))]
-box_forwarded_impl! {
-    /// This impl requires the [`"rc"`] Cargo feature of Serde.
-    ///
-    /// Deserializing a data structure containing `Rc` will not attempt to
-    /// deduplicate `Rc` references to the same data. Every deserialized `Rc`
-    /// will end up with a strong count of 1.
-    ///
-    /// [`"rc"`]: https://serde.rs/feature-flags.html#-features-rc
-    Rc
-}
+box_forwarded_impl!(Rc);
 
 #[cfg(all(feature = "unstable", feature = "rc", any(feature = "std", feature = "alloc")))]
-box_forwarded_impl! {
-    /// This impl requires the [`"rc"`] Cargo feature of Serde.
-    ///
-    /// Deserializing a data structure containing `Arc` will not attempt to
-    /// deduplicate `Arc` references to the same data. Every deserialized `Arc`
-    /// will end up with a strong count of 1.
-    ///
-    /// [`"rc"`]: https://serde.rs/feature-flags.html#-features-rc
-    Arc
-}
+box_forwarded_impl!(Arc);
 
 ////////////////////////////////////////////////////////////////////////////////
 

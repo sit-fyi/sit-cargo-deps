@@ -21,8 +21,8 @@
 //!
 
 // Aliases!!!
-use core::ops::{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Rem, Shl, Shr, Sub};
-use type_operators::{Abs, Cmp, Len, Max, Min, PartialDiv, Pow};
+use core::ops::{BitAnd, BitOr, BitXor, Shl, Shr, Add, Sub, Mul, Div, Rem, Neg};
+use type_operators::{Abs, Pow, Cmp, Len, PartialDiv, Min, Max};
 
 /// Alias for the associated type of `BitAnd`: `And<A, B> = <A as BitAnd<B>>::Output`
 pub type And<A, B> = <A as BitAnd<B>>::Output;
@@ -35,6 +35,7 @@ pub type Xor<A, B> = <A as BitXor<B>>::Output;
 pub type Shleft<A, B> = <A as Shl<B>>::Output;
 /// Alias for the associated type of `Shr`: `Shright<A, B> = <A as Shr<B>>::Output`
 pub type Shright<A, B> = <A as Shr<B>>::Output;
+
 
 /// Alias for the associated type of `Add`: `Sum<A, B> = <A as Add<B>>::Output`
 pub type Sum<A, B> = <A as Add<B>>::Output;
@@ -60,6 +61,7 @@ pub type AbsVal<A> = <A as Abs>::Output;
 /// Alias for the associated type of `Pow`: `Exp<A, B> = <A as Pow<B>>::Output`
 pub type Exp<A, B> = <A as Pow<B>>::Output;
 
+
 /// Alias to make it easy to add 1: `Add1<A> = <A as Add<B1>>::Output`
 pub type Add1<A> = <A as Add<::bit::B1>>::Output;
 /// Alias to make it easy to subtract 1: `Sub1<A> = <A as Sub<B1>>::Output`
@@ -67,7 +69,7 @@ pub type Sub1<A> = <A as Sub<::bit::B1>>::Output;
 
 /// Alias to make it easy to square. `Square<A> = <A as Mul<A>>::Output`
 pub type Square<A> = <A as Mul>::Output;
-/// Alias to make it easy to cube. `Cube<A> = <Square<A> as Mul<A>>::Output`
+/// Alias to make it easy to square. `Cube<A> = <Square<A> as Mul<A>>::Output`
 pub type Cube<A> = <Square<A> as Mul<A>>::Output;
 
 /// Alias for the associated type of `Cmp`: `Compare<A, B> = <A as Cmp<B>>::Output`
@@ -76,13 +78,15 @@ pub type Compare<A, B> = <A as Cmp<B>>::Output;
 /// Alias for the associated type of `Len`: `Length<A> = <A as Len>::Output`
 pub type Length<T> = <T as Len>::Output;
 
+
 /// Alias for the associated type of `Min`: `Minimum<A, B> = <A as Min<B>>::Output`
 pub type Minimum<A, B> = <A as Min<B>>::Output;
 
 /// Alias for the associated type of `Max`: `Maximum<A, B> = <A as Max<B>>::Output`
 pub type Maximum<A, B> = <A as Max<B>>::Output;
 
-use type_operators::{IsEqual, IsGreater, IsGreaterOrEqual, IsLess, IsLessOrEqual, IsNotEqual};
+
+use type_operators::{IsLess, IsEqual, IsGreater, IsGreaterOrEqual, IsLessOrEqual, IsNotEqual};
 /// Alias for the associated type of `IsLess`: `Le<A, B> = <A as IsLess<B>>::Output`
 pub type Le<A, B> = <A as IsLess<B>>::Output;
 /// Alias for the associated type of `IsEqual`: `Eq<A, B> = <A as IsEqual<B>>::Output`

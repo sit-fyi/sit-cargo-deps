@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::iter::Fuse;
-use std::fmt;
 
 use super::adaptors::{PutBack, put_back};
 use either_or_both::EitherOrBoth;
@@ -29,15 +28,6 @@ pub struct MergeJoinBy<I: Iterator, J: Iterator, F> {
     left: PutBack<Fuse<I>>,
     right: PutBack<Fuse<J>>,
     cmp_fn: F
-}
-
-impl<I, J, F> fmt::Debug for MergeJoinBy<I, J, F>
-    where I: Iterator + fmt::Debug,
-          I::Item: fmt::Debug,
-          J: Iterator + fmt::Debug,
-          J::Item: fmt::Debug,
-{
-    debug_fmt_fields!(MergeJoinBy, left, right);
 }
 
 impl<I, J, F> Iterator for MergeJoinBy<I, J, F>

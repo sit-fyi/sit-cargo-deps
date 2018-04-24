@@ -123,7 +123,7 @@ unsafe fn msys_tty_on(fd: DWORD) -> bool {
         name_info_bytes.len() as u32,
     );
     if res == 0 {
-        return false;
+        return true;
     }
     let name_info: FILE_NAME_INFO = *(name_info_bytes[0..size].as_ptr() as
                                           *const FILE_NAME_INFO);
@@ -137,13 +137,7 @@ unsafe fn msys_tty_on(fd: DWORD) -> bool {
         .as_os_str()
         .to_string_lossy()
         .into_owned();
-    // This checks whether 'pty' exists in the file name, which indicates that
-    // a pseudo-terminal is attached. To mitigate against false positives
-    // (e.g., an actual file name that contains 'pty'), we also require that
-    // either the strings 'msys-' or 'cygwin-' are in the file name as well.)
-    let is_msys = name.contains("msys-") || name.contains("cygwin-");
-    let is_pty = name.contains("-pty");
-    is_msys && is_pty
+    name.contains("msys-") || name.contains("-pty")
 }
 
 /// returns true if this is a tty

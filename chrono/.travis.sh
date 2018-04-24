@@ -33,20 +33,8 @@ build_and_test() {
   TZ=ACST-9:30 channel test -v --lib
   channel build -v --features rustc-serialize
   TZ=EST4 channel test -v --features rustc-serialize --lib
-  channel build -v --features serde
-  TZ=UTC0 channel test -v --features serde --lib
-  channel build -v --features serde,rustc-serialize
-  TZ=Asia/Katmandu channel test -v --features serde,rustc-serialize
-
-  # without default "clock" feature
-  channel build -v --no-default-features
-  TZ=ACST-9:30 channel test -v --no-default-features --lib
-  channel build -v --no-default-features --features rustc-serialize
-  TZ=EST4 channel test -v --no-default-features --features rustc-serialize --lib
-  channel build -v --no-default-features --features serde
-  TZ=UTC0 channel test -v --no-default-features --features serde --lib
-  channel build -v --no-default-features --features serde,rustc-serialize
-  TZ=Asia/Katmandu channel test -v --no-default-features --features serde,rustc-serialize --lib
+  channel build -v --features 'serde bincode'
+  TZ=UTC0 channel test -v --features 'serde bincode'
 }
 
 build_only() {
@@ -56,28 +44,13 @@ build_only() {
   channel build -v
   channel build -v --features rustc-serialize
   channel build -v --features 'serde bincode'
-  channel build -v --no-default-features
-}
-
-run_clippy() {
-    # cached installation will not work on a later nightly
-    if [ -n "${TRAVIS}" ] && ! cargo install clippy --debug --force; then
-        echo "COULD NOT COMPILE CLIPPY, IGNORING CLIPPY TESTS"
-        exit
-    fi
-
-    cargo clippy --features 'serde bincode rustc-serialize' -- -Dclippy
 }
 
 rustc --version
 cargo --version
 
 CHANNEL=nightly
-if [ "x${CLIPPY}" = xy ] ; then
-    run_clippy
-else
-    build_and_test
-fi
+build_and_test
 
 CHANNEL=beta
 build_and_test

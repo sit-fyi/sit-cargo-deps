@@ -37,10 +37,10 @@
 
 use lib::*;
 
-use self::private::{First, Second};
 use de::{self, Expected, IntoDeserializer, SeqAccess};
 use private::de::size_hint;
 use ser;
+use self::private::{First, Second};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,7 +58,6 @@ type ErrorImpl = ();
 
 impl de::Error for Error {
     #[cfg(any(feature = "std", feature = "alloc"))]
-    #[cold]
     fn custom<T>(msg: T) -> Self
     where
         T: Display,
@@ -69,7 +68,6 @@ impl de::Error for Error {
     }
 
     #[cfg(not(any(feature = "std", feature = "alloc")))]
-    #[cold]
     fn custom<T>(msg: T) -> Self
     where
         T: Display,
@@ -80,7 +78,6 @@ impl de::Error for Error {
 }
 
 impl ser::Error for Error {
-    #[cold]
     fn custom<T>(msg: T) -> Self
     where
         T: Display,
@@ -655,8 +652,11 @@ where
 {
     /// Check for remaining elements after passing a `SeqDeserializer` to
     /// `Visitor::visit_seq`.
-    pub fn end(self) -> Result<(), E> {
-        let remaining = self.iter.count();
+    pub fn end(mut self) -> Result<(), E> {
+        let mut remaining = 0;
+        while self.iter.next().is_some() {
+            remaining += 1;
+        }
         if remaining == 0 {
             Ok(())
         } else {
@@ -849,8 +849,11 @@ where
 {
     /// Check for remaining elements after passing a `MapDeserializer` to
     /// `Visitor::visit_map`.
-    pub fn end(self) -> Result<(), E> {
-        let remaining = self.iter.count();
+    pub fn end(mut self) -> Result<(), E> {
+        let mut remaining = 0;
+        while self.iter.next().is_some() {
+            remaining += 1;
+        }
         if remaining == 0 {
             Ok(())
         } else {

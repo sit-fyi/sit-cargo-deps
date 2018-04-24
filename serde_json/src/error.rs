@@ -58,28 +58,27 @@ impl Error {
         match self.err.code {
             ErrorCode::Message(_) => Category::Data,
             ErrorCode::Io(_) => Category::Io,
-            ErrorCode::EofWhileParsingList
-            | ErrorCode::EofWhileParsingObject
-            | ErrorCode::EofWhileParsingString
-            | ErrorCode::EofWhileParsingValue => Category::Eof,
-            ErrorCode::ExpectedColon
-            | ErrorCode::ExpectedListCommaOrEnd
-            | ErrorCode::ExpectedObjectCommaOrEnd
-            | ErrorCode::ExpectedObjectOrArray
-            | ErrorCode::ExpectedSomeIdent
-            | ErrorCode::ExpectedSomeValue
-            | ErrorCode::ExpectedSomeString
-            | ErrorCode::InvalidEscape
-            | ErrorCode::InvalidNumber
-            | ErrorCode::NumberOutOfRange
-            | ErrorCode::InvalidUnicodeCodePoint
-            | ErrorCode::ControlCharacterWhileParsingString
-            | ErrorCode::KeyMustBeAString
-            | ErrorCode::LoneLeadingSurrogateInHexEscape
-            | ErrorCode::TrailingComma
-            | ErrorCode::TrailingCharacters
-            | ErrorCode::UnexpectedEndOfHexEscape
-            | ErrorCode::RecursionLimitExceeded => Category::Syntax,
+            ErrorCode::EofWhileParsingList |
+            ErrorCode::EofWhileParsingObject |
+            ErrorCode::EofWhileParsingString |
+            ErrorCode::EofWhileParsingValue => Category::Eof,
+            ErrorCode::ExpectedColon |
+            ErrorCode::ExpectedListCommaOrEnd |
+            ErrorCode::ExpectedObjectCommaOrEnd |
+            ErrorCode::ExpectedObjectOrArray |
+            ErrorCode::ExpectedSomeIdent |
+            ErrorCode::ExpectedSomeValue |
+            ErrorCode::ExpectedSomeString |
+            ErrorCode::InvalidEscape |
+            ErrorCode::InvalidNumber |
+            ErrorCode::NumberOutOfRange |
+            ErrorCode::InvalidUnicodeCodePoint |
+            ErrorCode::KeyMustBeAString |
+            ErrorCode::LoneLeadingSurrogateInHexEscape |
+            ErrorCode::TrailingComma |
+            ErrorCode::TrailingCharacters |
+            ErrorCode::UnexpectedEndOfHexEscape |
+            ErrorCode::RecursionLimitExceeded => Category::Syntax,
         }
     }
 
@@ -179,6 +178,7 @@ impl From<Error> for io::Error {
     }
 }
 
+#[derive(Debug)]
 struct ErrorImpl {
     code: ErrorCode,
     line: usize,
@@ -187,6 +187,7 @@ struct ErrorImpl {
 
 // Not public API. Should be pub(crate).
 #[doc(hidden)]
+#[derive(Debug)]
 pub enum ErrorCode {
     /// Catchall for syntax error messages
     Message(Box<str>),
@@ -239,9 +240,6 @@ pub enum ErrorCode {
     /// Invalid unicode code point.
     InvalidUnicodeCodePoint,
 
-    /// Control character found while parsing a string.
-    ControlCharacterWhileParsingString,
-
     /// Object key is not a string.
     KeyMustBeAString,
 
@@ -264,35 +262,34 @@ pub enum ErrorCode {
 impl Error {
     // Not public API. Should be pub(crate).
     #[doc(hidden)]
-    #[cold]
     pub fn syntax(code: ErrorCode, line: usize, column: usize) -> Self {
         Error {
-            err: Box::new(ErrorImpl {
-                code: code,
-                line: line,
-                column: column,
-            }),
+            err: Box::new(
+                ErrorImpl {
+                    code: code,
+                    line: line,
+                    column: column,
+                },
+            ),
         }
     }
 
     // Not public API. Should be pub(crate).
-    //
-    // Update `eager_json` crate when this function changes.
     #[doc(hidden)]
-    #[cold]
     pub fn io(error: io::Error) -> Self {
         Error {
-            err: Box::new(ErrorImpl {
-                code: ErrorCode::Io(error),
-                line: 0,
-                column: 0,
-            }),
+            err: Box::new(
+                ErrorImpl {
+                    code: ErrorCode::Io(error),
+                    line: 0,
+                    column: 0,
+                },
+            ),
         }
     }
 
     // Not public API. Should be pub(crate).
     #[doc(hidden)]
-    #[cold]
     pub fn fix_position<F>(self, f: F) -> Self
     where
         F: FnOnce(ErrorCode) -> Error,
@@ -325,9 +322,6 @@ impl Display for ErrorCode {
             ErrorCode::InvalidNumber => f.write_str("invalid number"),
             ErrorCode::NumberOutOfRange => f.write_str("number out of range"),
             ErrorCode::InvalidUnicodeCodePoint => f.write_str("invalid unicode code point"),
-            ErrorCode::ControlCharacterWhileParsingString => {
-                f.write_str("control character (\\u0000-\\u001F) found while parsing a string")
-            }
             ErrorCode::KeyMustBeAString => f.write_str("key must be a string"),
             ErrorCode::LoneLeadingSurrogateInHexEscape => {
                 f.write_str("lone leading surrogate in hex escape")
@@ -373,7 +367,9 @@ impl Display for ErrorImpl {
             write!(
                 f,
                 "{} at line {} column {}",
-                self.code, self.line, self.column
+                self.code,
+                self.line,
+                self.column
             )
         }
     }
@@ -383,29 +379,23 @@ impl Display for ErrorImpl {
 // end up seeing this representation because it is what unwrap() shows.
 impl Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Error({:?}, line: {}, column: {})",
-            self.err.code.to_string(),
-            self.err.line,
-            self.err.column
-        )
+        Debug::fmt(&*self.err, f)
     }
 }
 
 impl de::Error for Error {
-    #[cold]
     fn custom<T: Display>(msg: T) -> Error {
         Error {
-            err: Box::new(ErrorImpl {
-                code: ErrorCode::Message(msg.to_string().into_boxed_str()),
-                line: 0,
-                column: 0,
-            }),
+            err: Box::new(
+                ErrorImpl {
+                    code: ErrorCode::Message(msg.to_string().into_boxed_str()),
+                    line: 0,
+                    column: 0,
+                },
+            ),
         }
     }
 
-    #[cold]
     fn invalid_type(unexp: de::Unexpected, exp: &de::Expected) -> Self {
         if let de::Unexpected::Unit = unexp {
             Error::custom(format_args!("invalid type: null, expected {}", exp))
@@ -416,14 +406,15 @@ impl de::Error for Error {
 }
 
 impl ser::Error for Error {
-    #[cold]
     fn custom<T: Display>(msg: T) -> Error {
         Error {
-            err: Box::new(ErrorImpl {
-                code: ErrorCode::Message(msg.to_string().into_boxed_str()),
-                line: 0,
-                column: 0,
-            }),
+            err: Box::new(
+                ErrorImpl {
+                    code: ErrorCode::Message(msg.to_string().into_boxed_str()),
+                    line: 0,
+                    column: 0,
+                },
+            ),
         }
     }
 }

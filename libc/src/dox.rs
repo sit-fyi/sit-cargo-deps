@@ -1,6 +1,6 @@
 pub use self::imp::*;
 
-#[cfg(not(cross_platform_docs))]
+#[cfg(not(dox))]
 mod imp {
     pub use core::option::Option;
     pub use core::clone::Clone;
@@ -8,7 +8,7 @@ mod imp {
     pub use core::mem;
 }
 
-#[cfg(cross_platform_docs)]
+#[cfg(dox)]
 mod imp {
     pub enum Option<T> {
         Some(T),

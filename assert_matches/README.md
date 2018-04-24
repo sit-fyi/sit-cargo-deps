@@ -3,7 +3,7 @@
 Provides a macro, `assert_matches`, which tests whether a value
 matches a given pattern, causing a panic if the match fails.
 
-[Documentation](https://docs.rs/assert_matches/)
+[Documentation](https://murarth.github.io/assert_matches/assert_matches/index.html)
 
 ```rust
 #[macro_use] extern crate assert_matches;
@@ -26,14 +26,7 @@ to your Cargo.toml:
 
 ```toml
 [dev-dependencies]
-assert_matches = "1.2"
-```
-
-And add the following to your crate root:
-
-```rust
-#[cfg(test)] #[macro_use]
-extern crate assert_matches;
+assert_matches = "1.1"
 ```
 
 ## License
