@@ -1,6 +1,6 @@
 //! Adapted from [`nom`](https://github.com/Geal/nom).
 
-use std::str::{Bytes, CharIndices, Chars};
+use std::str::{Chars, CharIndices, Bytes};
 
 use unicode_xid::UnicodeXID;
 
@@ -73,9 +73,8 @@ pub fn whitespace(input: Cursor) -> PResult<()> {
     while i < bytes.len() {
         let s = input.advance(i);
         if bytes[i] == b'/' {
-            if s.starts_with("//") && (!s.starts_with("///") || s.starts_with("////"))
-                && !s.starts_with("//!")
-            {
+            if s.starts_with("//") && (!s.starts_with("///") || s.starts_with("////")) &&
+               !s.starts_with("//!") {
                 if let Some(len) = s.find('\n') {
                     i += len + 1;
                     continue;
@@ -83,10 +82,9 @@ pub fn whitespace(input: Cursor) -> PResult<()> {
                 break;
             } else if s.starts_with("/**/") {
                 i += 4;
-                continue;
-            } else if s.starts_with("/*") && (!s.starts_with("/**") || s.starts_with("/***"))
-                && !s.starts_with("/*!")
-            {
+                continue
+            } else if s.starts_with("/*") && (!s.starts_with("/**") || s.starts_with("/***")) &&
+                      !s.starts_with("/*!") {
                 let (_, com) = block_comment(s)?;
                 i += com.len();
                 continue;
@@ -106,7 +104,11 @@ pub fn whitespace(input: Cursor) -> PResult<()> {
                 }
             }
         }
-        return if i > 0 { Ok((s, ())) } else { Err(LexError) };
+        return if i > 0 {
+            Ok((s, ()))
+        } else {
+            Err(LexError)
+        };
     }
     Ok((input.advance(input.len()), ()))
 }
@@ -268,7 +270,7 @@ macro_rules! take_until_newline_or_eof {
         } else {
             match $i.find('\n') {
                 Some(i) => Ok(($i.advance(i), &$i.rest[..i])),
-                None => Ok(($i.advance($i.len()), &$i.rest[..$i.len()])),
+                None => Ok(($i.advance($i.len()), ""))
             }
         }
     }};
@@ -388,4 +390,38 @@ macro_rules! map {
     ($i:expr, $f:expr, $g:expr) => {
         map!($i, call!($f), $g)
     };
+}
+
+macro_rules! many0 {
+    ($i:expr, $f:expr) => {{
+        let ret;
+        let mut res   = ::std::vec::Vec::new();
+        let mut input = $i;
+
+        loop {
+            if input.is_empty() {
+                ret = Ok((input, res));
+                break;
+            }
+
+            match $f(input) {
+                Err(LexError) => {
+                    ret = Ok((input, res));
+                    break;
+                }
+                Ok((i, o)) => {
+                    // loop trip must always consume (otherwise infinite loops)
+                    if i.len() == input.len() {
+                        ret = Err(LexError);
+                        break;
+                    }
+
+                    res.push(o);
+                    input = i;
+                }
+            }
+        }
+
+        ret
+    }};
 }

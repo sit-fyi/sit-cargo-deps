@@ -1,9 +1,5 @@
 # Changelog
 
-## 0.3.0 (2016-12-25)
-
-- Updated mappings from Text::Unidecode version 1.30.
-
 ## 0.2.0 (2015-07-01)
 
 - Switched from phf map to lookup table for speed increase

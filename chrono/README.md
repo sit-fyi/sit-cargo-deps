@@ -1,5 +1,5 @@
-[Chrono][docsrs]: Date and Time for Rust
-========================================
+[Chrono][docsrs] 0.4.0
+======================
 
 [![Chrono on Travis CI][travis-image]][travis]
 [![Chrono on Appveyor][appveyor-image]][appveyor]
@@ -12,8 +12,9 @@
 [appveyor]: https://ci.appveyor.com/project/chronotope/chrono
 [cratesio-image]: https://img.shields.io/crates/v/chrono.svg
 [cratesio]: https://crates.io/crates/chrono
-[docsrs-image]: https://docs.rs/chrono/badge.svg
-[docsrs]: https://docs.rs/chrono
+[docsrs-image]: https://docs.rs/chrono/badge.svg?version=0.4.0
+[docsrs]: https://docs.rs/chrono/0.4.0/
+
 
 Date and time handling for Rust.
 It aims to be a feature-complete superset of
@@ -45,13 +46,20 @@ Put this in your `Cargo.toml`:
 chrono = "0.4"
 ```
 
-Or, if you want [Serde](https://github.com/serde-rs/serde) include the feature
-like this:
+Or, if you want [Serde](https://github.com/serde-rs/serde) or
+[rustc-serialize](https://github.com/rust-lang-nursery/rustc-serialize) support,
+include the features like this:
 
 ```toml
 [dependencies]
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "rustc-serialize"] }
 ```
+
+> Note that Chrono's support for rustc-serialize is now considered deprecated.
+Starting from 0.4.0 there is no further guarantee that
+the features available in Serde will be also available to rustc-serialize,
+and the support can be removed in any future major version.
+**Rustc-serialize users are strongly recommended to migrate to Serde.**
 
 Then put this in your crate root:
 
@@ -228,10 +236,6 @@ assert_eq!(dt.to_string(), "2014-11-28 12:00:09 UTC");
 assert_eq!(dt.to_rfc2822(), "Fri, 28 Nov 2014 12:00:09 +0000");
 assert_eq!(dt.to_rfc3339(), "2014-11-28T12:00:09+00:00");
 assert_eq!(format!("{:?}", dt), "2014-11-28T12:00:09Z");
-
-let now = Utc::now();
-// Will display today's date with nanoseconds
-println!("{:?}", now); // 2018-1-24T12:00:00.000000000Z
 ```
 
 Parsing can be done with three methods:

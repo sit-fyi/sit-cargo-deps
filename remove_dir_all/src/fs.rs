@@ -4,13 +4,8 @@ use std::{io, ptr};
 use std::os::windows::prelude::*;
 use std::path::{Path, PathBuf};
 
-use winapi::shared::minwindef::*;
-use winapi::shared::winerror::*;
-use winapi::um::errhandlingapi::*;
-use winapi::um::fileapi::*;
-use winapi::um::minwinbase::*;
-use winapi::um::winbase::*;
-use winapi::um::winnt::*;
+use winapi::*;
+use kernel::*;
 
 pub const VOLUME_NAME_DOS: DWORD = 0x0;
 
@@ -30,7 +25,7 @@ struct RmdirContext<'a> {
 ///     remove_dir_all("./temp/").unwrap();
 /// }
 /// ```
-pub fn remove_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
+pub fn remove_dir_all(path: &Path) -> io::Result<()> {
     // On Windows it is not enough to just recursively remove the contents of a
     // directory and then the directory itself. Deleting does not happen
     // instantaneously, but is scheduled.
@@ -74,7 +69,6 @@ pub fn remove_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 
     // Open the path once to get the canonical path, file type and attributes.
     let (path, metadata) = {
-        let path = path.as_ref();
         let mut opts = OpenOptions::new();
         opts.access_mode(FILE_READ_ATTRIBUTES);
         opts.custom_flags(FILE_FLAG_BACKUP_SEMANTICS |
@@ -106,36 +100,29 @@ pub fn remove_dir_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 }
 
 fn remove_item(path: &Path, ctx: &mut RmdirContext) -> io::Result<()> {
-    if ctx.readonly {
+    if !ctx.readonly {
+        let mut opts = OpenOptions::new();
+        opts.access_mode(DELETE);
+        opts.custom_flags(FILE_FLAG_BACKUP_SEMANTICS | // delete directory
+                          FILE_FLAG_OPEN_REPARSE_POINT | // delete symlink
+                          FILE_FLAG_DELETE_ON_CLOSE);
+        let file = opts.open(path)?;
+        move_item(&file, ctx)
+    } else {
         // remove read-only permision
         let mut permissions = path.metadata()?.permissions();
         permissions.set_readonly(false);
 
         fs::set_permissions(path, permissions)?;
-    }
+        let file = File::open(path)?;
+        move_item(&file, ctx)?;
 
-    let mut opts = OpenOptions::new();
-    opts.access_mode(DELETE);
-    opts.custom_flags(FILE_FLAG_BACKUP_SEMANTICS | // delete directory
-                        FILE_FLAG_OPEN_REPARSE_POINT | // delete symlink
-                        FILE_FLAG_DELETE_ON_CLOSE);
-    let file = opts.open(path)?;
-    move_item(&file, ctx)?;
-
-    if ctx.readonly {
         // restore read-only flag just in case there are other hard links
-        match fs::metadata(&path) {
-            Ok(metadata) => {
-                let mut perm = metadata.permissions();
-                perm.set_readonly(true);
-                fs::set_permissions(&path, perm)?;
-            },
-            Err(ref err) if err.kind() == io::ErrorKind::NotFound => {},
-            err => return err.map(|_| ()),
-        }
+        let mut perm = fs::metadata(&path)?.permissions();
+        perm.set_readonly(true);
+        fs::set_permissions(&path, perm)?;
+        Ok(())
     }
-
-    Ok(())
 }
 
 fn move_item(file: &File, ctx: &mut RmdirContext) -> io::Result<()> {
@@ -171,7 +158,7 @@ fn rename(file: &File, new: &Path, replace: bool) -> io::Result<()> {
     unsafe {
         // Thanks to alignment guarantees on Windows this works
         // (8 for 32-bit and 16 for 64-bit)
-        let info = data.as_mut_ptr() as *mut FILE_RENAME_INFO;
+        let mut info = data.as_mut_ptr() as *mut FILE_RENAME_INFO;
         // The type of ReplaceIfExists is BOOL, but it actually expects a
         // BOOLEAN. This means true is -1, not c::TRUE.
         (*info).ReplaceIfExists = if replace { -1 } else { FALSE };

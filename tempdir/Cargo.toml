@@ -12,7 +12,7 @@
 
 [package]
 name = "tempdir"
-version = "0.3.7"
+version = "0.3.6"
 authors = ["The Rust Project Developers"]
 description = "A library for managing a temporary directory and deleting all contents when it's\ndropped.\n"
 homepage = "https://github.com/rust-lang/tempdir"
@@ -26,7 +26,7 @@ repository = "https://github.com/rust-lang/tempdir"
 version = "0.4"
 
 [dependencies.remove_dir_all]
-version = "0.5"
+version = "0.3"
 [badges.appveyor]
 repository = "rust-lang-libs/tempdir"
 

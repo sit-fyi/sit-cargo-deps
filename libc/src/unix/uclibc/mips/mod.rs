@@ -1,5 +1,3 @@
-pub type pthread_t = ::c_ulong;
-
 pub const SFD_CLOEXEC: ::c_int = 0x080000;
 
 pub const NCCS: usize = 32;

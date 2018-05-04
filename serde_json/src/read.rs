@@ -6,8 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::ops::Deref;
 use std::{char, cmp, io, str};
+use std::ops::Deref;
 
 use iter::LineColIterator;
 
@@ -181,7 +181,7 @@ where
                 }
                 _ => {
                     if validate {
-                        return error(self, ErrorCode::ControlCharacterWhileParsingString);
+                        return error(self, ErrorCode::InvalidUnicodeCodePoint);
                     }
                     scratch.push(ch);
                 }
@@ -198,11 +198,13 @@ where
     fn next(&mut self) -> io::Result<Option<u8>> {
         match self.ch.take() {
             Some(ch) => Ok(Some(ch)),
-            None => match self.iter.next() {
-                Some(Err(err)) => Err(err),
-                Some(Ok(ch)) => Ok(Some(ch)),
-                None => Ok(None),
-            },
+            None => {
+                match self.iter.next() {
+                    Some(Err(err)) => Err(err),
+                    Some(Ok(ch)) => Ok(Some(ch)),
+                    None => Ok(None),
+                }
+            }
         }
     }
 
@@ -210,14 +212,16 @@ where
     fn peek(&mut self) -> io::Result<Option<u8>> {
         match self.ch {
             Some(ch) => Ok(Some(ch)),
-            None => match self.iter.next() {
-                Some(Err(err)) => Err(err),
-                Some(Ok(ch)) => {
-                    self.ch = Some(ch);
-                    Ok(self.ch)
+            None => {
+                match self.iter.next() {
+                    Some(Err(err)) => Err(err),
+                    Some(Ok(ch)) => {
+                        self.ch = Some(ch);
+                        Ok(self.ch)
+                    }
+                    None => Ok(None),
                 }
-                None => Ok(None),
-            },
+            }
         }
     }
 
@@ -273,7 +277,7 @@ where
                     try!(ignore_escape(self));
                 }
                 _ => {
-                    return error(self, ErrorCode::ControlCharacterWhileParsingString);
+                    return error(self, ErrorCode::InvalidUnicodeCodePoint);
                 }
             }
         }
@@ -292,19 +296,19 @@ impl<'a> SliceRead<'a> {
     }
 
     fn position_of_index(&self, i: usize) -> Position {
-        let mut position = Position { line: 1, column: 0 };
+        let mut pos = Position { line: 1, column: 0 };
         for ch in &self.slice[..i] {
             match *ch {
                 b'\n' => {
-                    position.line += 1;
-                    position.column = 0;
+                    pos.line += 1;
+                    pos.column = 0;
                 }
                 _ => {
-                    position.column += 1;
+                    pos.column += 1;
                 }
             }
         }
-        position
+        pos
     }
 
     /// The big optimization here over IoRead is that if the string contains no
@@ -354,7 +358,7 @@ impl<'a> SliceRead<'a> {
                 }
                 _ => {
                     if validate {
-                        return error(self, ErrorCode::ControlCharacterWhileParsingString);
+                        return error(self, ErrorCode::InvalidUnicodeCodePoint);
                     }
                     self.index += 1;
                 }
@@ -370,24 +374,28 @@ impl<'a> Read<'a> for SliceRead<'a> {
     fn next(&mut self) -> io::Result<Option<u8>> {
         // `Ok(self.slice.get(self.index).map(|ch| { self.index += 1; *ch }))`
         // is about 10% slower.
-        Ok(if self.index < self.slice.len() {
-            let ch = self.slice[self.index];
-            self.index += 1;
-            Some(ch)
-        } else {
-            None
-        })
+        Ok(
+            if self.index < self.slice.len() {
+                let ch = self.slice[self.index];
+                self.index += 1;
+                Some(ch)
+            } else {
+                None
+            },
+        )
     }
 
     #[inline]
     fn peek(&mut self) -> io::Result<Option<u8>> {
         // `Ok(self.slice.get(self.index).map(|ch| *ch))` is about 10% slower
         // for some reason.
-        Ok(if self.index < self.slice.len() {
-            Some(self.slice[self.index])
-        } else {
-            None
-        })
+        Ok(
+            if self.index < self.slice.len() {
+                Some(self.slice[self.index])
+            } else {
+                None
+            },
+        )
     }
 
     #[inline]
@@ -438,7 +446,7 @@ impl<'a> Read<'a> for SliceRead<'a> {
                     try!(ignore_escape(self));
                 }
                 _ => {
-                    return error(self, ErrorCode::ControlCharacterWhileParsingString);
+                    return error(self, ErrorCode::InvalidUnicodeCodePoint);
                 }
             }
         }
@@ -450,9 +458,7 @@ impl<'a> Read<'a> for SliceRead<'a> {
 impl<'a> StrRead<'a> {
     /// Create a JSON input source to read from a UTF-8 string.
     pub fn new(s: &'a str) -> Self {
-        StrRead {
-            delegate: SliceRead::new(s.as_bytes()),
-        }
+        StrRead { delegate: SliceRead::new(s.as_bytes()) }
     }
 }
 
@@ -487,11 +493,14 @@ impl<'a> Read<'a> for StrRead<'a> {
     }
 
     fn parse_str<'s>(&'s mut self, scratch: &'s mut Vec<u8>) -> Result<Reference<'a, 's, str>> {
-        self.delegate.parse_str_bytes(scratch, true, |_, bytes| {
-            // The input is assumed to be valid UTF-8 and the \u-escapes are
-            // checked along the way, so don't need to check here.
-            Ok(unsafe { str::from_utf8_unchecked(bytes) })
-        })
+        self.delegate
+            .parse_str_bytes(
+                scratch, true, |_, bytes| {
+                    // The input is assumed to be valid UTF-8 and the \u-escapes are
+                    // checked along the way, so don't need to check here.
+                    Ok(unsafe { str::from_utf8_unchecked(bytes) })
+                }
+            )
     }
 
     fn parse_str_raw<'s>(
@@ -544,8 +553,8 @@ fn next_or_eof<'de, R: ?Sized + Read<'de>>(read: &mut R) -> Result<u8> {
 }
 
 fn error<'de, R: ?Sized + Read<'de>, T>(read: &R, reason: ErrorCode) -> Result<T> {
-    let position = read.position();
-    Err(Error::syntax(reason, position.line, position.column))
+    let pos = read.position();
+    Err(Error::syntax(reason, pos.line, pos.column))
 }
 
 fn as_str<'de, 's, R: Read<'de>>(read: &R, slice: &'s [u8]) -> Result<&'s str> {
@@ -598,12 +607,14 @@ fn parse_escape<'de, R: Read<'de>>(read: &mut R, scratch: &mut Vec<u8>) -> Resul
                     }
                 }
 
-                n => match char::from_u32(n as u32) {
-                    Some(c) => c,
-                    None => {
-                        return error(read, ErrorCode::InvalidUnicodeCodePoint);
+                n => {
+                    match char::from_u32(n as u32) {
+                        Some(c) => c,
+                        None => {
+                            return error(read, ErrorCode::InvalidUnicodeCodePoint);
+                        }
                     }
-                },
+                }
             };
 
             // FIXME: this allocation is required in order to be compatible with stable

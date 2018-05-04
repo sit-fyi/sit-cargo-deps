@@ -12,12 +12,11 @@
 
 [package]
 name = "crc"
-version = "1.8.1"
+version = "1.7.0"
 authors = ["Rui Hu <code@mrhooray.com>"]
-description = "Rust implementation of CRC(16, 32, 64) with support of various standards"
-documentation = "https://docs.rs/crc"
+description = "Rust implementation of CRC(32, 64) with support of various standards"
 readme = "README.md"
-keywords = ["crc", "crc16", "crc32", "crc64", "hash"]
+keywords = ["crc", "crc32", "crc64", "hash", "checksum"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/mrhooray/crc-rs.git"
 [build-dependencies.build_const]
