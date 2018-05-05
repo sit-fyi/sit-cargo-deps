@@ -22,9 +22,11 @@
 //!
 //! [https://serde.rs/derive.html]: https://serde.rs/derive.html
 
-#![doc(html_root_url = "https://docs.rs/serde_derive/1.0.35")]
-#![cfg_attr(feature = "cargo-clippy", allow(enum_variant_names, redundant_field_names,
-                                            too_many_arguments, used_underscore_binding))]
+#![doc(html_root_url = "https://docs.rs/serde_derive/1.0.43")]
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(enum_variant_names, redundant_field_names, too_many_arguments, used_underscore_binding)
+)]
 // The `quote!` macro requires deep recursion.
 #![recursion_limit = "512"]
 
@@ -46,8 +48,9 @@ mod bound;
 #[macro_use]
 mod fragment;
 
-mod ser;
 mod de;
+mod ser;
+mod try;
 
 #[proc_macro_derive(Serialize, attributes(serde))]
 pub fn derive_serialize(input: TokenStream) -> TokenStream {

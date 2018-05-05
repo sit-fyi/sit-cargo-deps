@@ -12,7 +12,7 @@
 
 [package]
 name = "deflate"
-version = "0.7.17"
+version = "0.7.18"
 authors = ["oyvindln <oyvindln@users.noreply.github.com>"]
 description = "A DEFLATE, zlib and gzip encoder written in rust.\n"
 homepage = "https://github.com/oyvindln/deflate-rs"
@@ -25,20 +25,20 @@ repository = "https://github.com/oyvindln/deflate-rs"
 [package.metadata.docs.rs]
 features = ["gzip"]
 [dependencies.adler32]
+version = "1.0.2"
+
+[dependencies.byteorder]
 version = "1.0.0"
 
 [dependencies.gzip-header]
 version = "0.1"
 optional = true
-
-[dependencies.byteorder]
-version = "1.0.0"
 [dev-dependencies.flate2]
 version = "0.2.19"
 
 [features]
-gzip = ["gzip-header"]
 benchmarks = []
+gzip = ["gzip-header"]
 [badges.travis-ci]
-repository = "oyvindln/deflate-rs"
 branch = "dev"
+repository = "oyvindln/deflate-rs"
