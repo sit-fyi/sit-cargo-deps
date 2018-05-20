@@ -59,6 +59,29 @@ fn valid_class_ranges() {
     qc(prop as fn(Vec<(char, char)>) -> bool);
 }
 
+#[test]
+fn intersection() {
+    fn prop(ranges1: Vec<(char, char)>, ranges2: Vec<(char, char)>) -> bool {
+        let class1 = class(&ranges1).canonicalize();
+        let class2 = class(&ranges2).canonicalize();
+
+        let mut expected = CharClass::empty();
+        // This is inefficient but correct.
+        for range1 in &class1 {
+            for range2 in &class2 {
+                if let Some(intersection) = range1.intersection(range2) {
+                    expected.ranges.push(intersection);
+                }
+            }
+        }
+        expected = expected.canonicalize();
+
+        let got = class1.intersection(&class2);
+        expected == got
+    }
+    qc(prop as fn(Vec<(char, char)>, Vec<(char, char)>) -> bool);
+}
+
 /// A wrapper type for generating "regex-like" Unicode strings.
 ///
 /// In particular, this type's `Arbitrary` impl specifically biases toward
@@ -165,8 +188,8 @@ impl Arbitrary for Expr {
             ClassBytes(ref cls) => Box::new(cls.shrink().map(ClassBytes)),
             Group { ref e, ref i, ref name } => {
                 let (i, name) = (i.clone(), name.clone());
-                Box::new(e.clone().shrink()
-                          .chain(e.clone().shrink()
+                Box::new((*e.clone()).shrink()
+                          .chain((*e.clone()).shrink()
                                   .map(move |e| Group {
                                       e: Box::new(e),
                                       i: i.clone(),
