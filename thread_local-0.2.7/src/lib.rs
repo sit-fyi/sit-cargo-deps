@@ -1,4 +1,4 @@
-// Copyright 2017 Amanieu d'Antras
+// Copyright 2016 Amanieu d'Antras
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
@@ -70,21 +70,58 @@
 
 #![warn(missing_docs)]
 
-extern crate unreachable;
-#[macro_use]
-extern crate lazy_static;
-
-mod thread_id;
+extern crate thread_id;
 
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::marker::PhantomData;
 use std::cell::UnsafeCell;
+use std::mem;
 use std::fmt;
 use std::iter::Chain;
 use std::option::IntoIter as OptionIter;
-use std::panic::UnwindSafe;
-use unreachable::{UncheckedOptionExt, UncheckedResultExt};
+
+// Option::unchecked_unwrap
+trait UncheckedOptionExt<T> {
+    unsafe fn unchecked_unwrap(self) -> T;
+}
+#[inline]
+unsafe fn unreachable() -> ! {
+    enum Void {}
+    match *(1 as *const Void) {}
+}
+impl<T> UncheckedOptionExt<T> for Option<T> {
+    unsafe fn unchecked_unwrap(self) -> T {
+        match self {
+            Some(x) => x,
+            None => unreachable(),
+        }
+    }
+}
+impl<T, E> UncheckedOptionExt<T> for Result<T, E> {
+    unsafe fn unchecked_unwrap(self) -> T {
+        match self {
+            Ok(x) => x,
+            Err(_) => unreachable(),
+        }
+    }
+}
+
+// BoxExt::{from_raw,into_raw}
+trait BoxExt<T: ?Sized> {
+    fn into_raw(b: Self) -> *mut T;
+    unsafe fn from_raw(raw: *mut T) -> Self;
+}
+impl<T: ?Sized> BoxExt<T> for Box<T> {
+    fn into_raw(mut b: Self) -> *mut T {
+        let ptr: *mut T = &mut *b;
+        mem::forget(b);
+        ptr
+    }
+    unsafe fn from_raw(raw: *mut T) -> Self {
+        mem::transmute(raw)
+    }
+}
 
 /// Thread-local variable wrapper
 ///
@@ -134,7 +171,7 @@ impl<T: ?Sized + Send> Default for ThreadLocal<T> {
 impl<T: ?Sized + Send> Drop for ThreadLocal<T> {
     fn drop(&mut self) {
         unsafe {
-            Box::from_raw(self.table.load(Ordering::Relaxed));
+            let _: Box<Table<T>> = BoxExt::from_raw(self.table.load(Ordering::Relaxed));
         }
     }
 }
@@ -174,7 +211,7 @@ impl<T: ?Sized + Send> ThreadLocal<T> {
             prev: None,
         };
         ThreadLocal {
-            table: AtomicPtr::new(Box::into_raw(Box::new(table))),
+            table: AtomicPtr::new(BoxExt::into_raw(Box::new(table))),
             lock: Mutex::new(0),
             marker: PhantomData,
         }
@@ -189,21 +226,16 @@ impl<T: ?Sized + Send> ThreadLocal<T> {
     /// Returns the element for the current thread, or creates it if it doesn't
     /// exist.
     pub fn get_or<F>(&self, create: F) -> &T
-    where
-        F: FnOnce() -> Box<T>,
+        where F: FnOnce() -> Box<T>
     {
-        unsafe {
-            self.get_or_try(|| Ok::<Box<T>, ()>(create()))
-                .unchecked_unwrap_ok()
-        }
+        unsafe { self.get_or_try(|| Ok::<Box<T>, ()>(create())).unchecked_unwrap() }
     }
 
     /// Returns the element for the current thread, or creates it if it doesn't
     /// exist. If `create` fails, that error is returned and no element is
     /// added.
     pub fn get_or_try<F, E>(&self, create: F) -> Result<&T, E>
-    where
-        F: FnOnce() -> Result<Box<T>, E>,
+        where F: FnOnce() -> Result<Box<T>, E>
     {
         let id = thread_id::get();
         match self.get_fast(id) {
@@ -273,10 +305,10 @@ impl<T: ?Sized + Send> ThreadLocal<T> {
                 owner: AtomicUsize::new(0),
                 data: UnsafeCell::new(None),
             };
-            let new_table = Box::into_raw(Box::new(Table {
+            let new_table = BoxExt::into_raw(Box::new(Table {
                 entries: vec![entry; table.entries.len() * 2].into_boxed_slice(),
                 hash_bits: table.hash_bits + 1,
-                prev: unsafe { Some(Box::from_raw(table_raw)) },
+                prev: unsafe { Some(BoxExt::from_raw(table_raw)) },
             }));
             self.table.store(new_table, Ordering::Release);
             unsafe { &*new_table }
@@ -375,8 +407,6 @@ impl<T: ?Sized + Send + fmt::Debug> fmt::Debug for ThreadLocal<T> {
     }
 }
 
-impl<T: ?Sized + Send + UnwindSafe> UnwindSafe for ThreadLocal<T> {}
-
 struct RawIter<T: ?Sized + Send> {
     remaining: usize,
     index: usize,
@@ -415,9 +445,7 @@ impl<'a, T: ?Sized + Send + 'a> Iterator for IterMut<'a, T> {
     type Item = &'a mut Box<T>;
 
     fn next(&mut self) -> Option<&'a mut Box<T>> {
-        self.raw.next().map(|x| unsafe {
-            (*x).as_mut().unchecked_unwrap()
-        })
+        self.raw.next().map(|x| unsafe { (*x).as_mut().unchecked_unwrap() })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -437,9 +465,7 @@ impl<T: ?Sized + Send> Iterator for IntoIter<T> {
     type Item = Box<T>;
 
     fn next(&mut self) -> Option<Box<T>> {
-        self.raw.next().map(
-            |x| unsafe { (*x).take().unchecked_unwrap() },
-        )
+        self.raw.next().map(|x| unsafe { (*x).take().unchecked_unwrap() })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -496,21 +522,16 @@ impl<T: ?Sized + Send> CachedThreadLocal<T> {
     /// exist.
     #[inline(always)]
     pub fn get_or<F>(&self, create: F) -> &T
-    where
-        F: FnOnce() -> Box<T>,
+        where F: FnOnce() -> Box<T>
     {
-        unsafe {
-            self.get_or_try(|| Ok::<Box<T>, ()>(create()))
-                .unchecked_unwrap_ok()
-        }
+        unsafe { self.get_or_try(|| Ok::<Box<T>, ()>(create())).unchecked_unwrap() }
     }
 
     /// Returns the element for the current thread, or creates it if it doesn't
     /// exist. If `create` fails, that error is returned and no element is
     /// added.
     pub fn get_or_try<F, E>(&self, create: F) -> Result<&T, E>
-    where
-        F: FnOnce() -> Result<Box<T>, E>,
+        where F: FnOnce() -> Result<Box<T>, E>
     {
         let id = thread_id::get();
         let owner = self.owner.load(Ordering::Relaxed);
@@ -523,8 +544,7 @@ impl<T: ?Sized + Send> CachedThreadLocal<T> {
     #[cold]
     #[inline(never)]
     fn get_or_try_slow<F, E>(&self, id: usize, owner: usize, create: F) -> Result<&T, E>
-    where
-        F: FnOnce() -> Result<Box<T>, E>,
+        where F: FnOnce() -> Result<Box<T>, E>
     {
         if owner == 0 && self.owner.compare_and_swap(0, id, Ordering::Relaxed) == 0 {
             unsafe {
@@ -544,12 +564,7 @@ impl<T: ?Sized + Send> CachedThreadLocal<T> {
     /// be done safely---the mutable borrow statically guarantees no other
     /// threads are currently accessing their associated values.
     pub fn iter_mut(&mut self) -> CachedIterMut<T> {
-        unsafe {
-            (*self.local.get()).as_mut().into_iter().chain(
-                self.global
-                    .iter_mut(),
-            )
-        }
+        unsafe { (*self.local.get()).as_mut().into_iter().chain(self.global.iter_mut()) }
     }
 
     /// Removes all thread-specific values from the `ThreadLocal`, effectively
@@ -568,12 +583,7 @@ impl<T: ?Sized + Send> IntoIterator for CachedThreadLocal<T> {
     type IntoIter = CachedIntoIter<T>;
 
     fn into_iter(self) -> CachedIntoIter<T> {
-        unsafe {
-            (*self.local.get()).take().into_iter().chain(
-                self.global
-                    .into_iter(),
-            )
-        }
+        unsafe { (*self.local.get()).take().into_iter().chain(self.global.into_iter()) }
     }
 }
 
@@ -605,8 +615,6 @@ pub type CachedIterMut<'a, T> = Chain<OptionIter<&'a mut Box<T>>, IterMut<'a, T>
 
 /// An iterator that moves out of a `CachedThreadLocal`.
 pub type CachedIntoIter<T> = Chain<OptionIter<Box<T>>, IntoIter<T>>;
-
-impl<T: ?Sized + Send + UnwindSafe> UnwindSafe for CachedThreadLocal<T> {}
 
 #[cfg(test)]
 mod tests {
@@ -667,10 +675,11 @@ mod tests {
         let tls2 = tls.clone();
         let create2 = create.clone();
         thread::spawn(move || {
-            assert_eq!(None, tls2.get());
-            assert_eq!(1, *tls2.get_or(|| create2()));
-            assert_eq!(Some(&1), tls2.get());
-        }).join()
+                assert_eq!(None, tls2.get());
+                assert_eq!(1, *tls2.get_or(|| create2()));
+                assert_eq!(Some(&1), tls2.get());
+            })
+            .join()
             .unwrap();
 
         assert_eq!(Some(&0), tls.get());
@@ -688,10 +697,11 @@ mod tests {
         let tls2 = tls.clone();
         let create2 = create.clone();
         thread::spawn(move || {
-            assert_eq!(None, tls2.get());
-            assert_eq!(1, *tls2.get_or(|| create2()));
-            assert_eq!(Some(&1), tls2.get());
-        }).join()
+                assert_eq!(None, tls2.get());
+                assert_eq!(1, *tls2.get_or(|| create2()));
+                assert_eq!(Some(&1), tls2.get());
+            })
+            .join()
             .unwrap();
 
         assert_eq!(Some(&0), tls.get());
@@ -705,12 +715,15 @@ mod tests {
 
         let tls2 = tls.clone();
         thread::spawn(move || {
-            tls2.get_or(|| Box::new(2));
-            let tls3 = tls2.clone();
-            thread::spawn(move || { tls3.get_or(|| Box::new(3)); })
-                .join()
-                .unwrap();
-        }).join()
+                tls2.get_or(|| Box::new(2));
+                let tls3 = tls2.clone();
+                thread::spawn(move || {
+                        tls3.get_or(|| Box::new(3));
+                    })
+                    .join()
+                    .unwrap();
+            })
+            .join()
             .unwrap();
 
         let mut tls = Arc::try_unwrap(tls).unwrap();
@@ -729,12 +742,15 @@ mod tests {
 
         let tls2 = tls.clone();
         thread::spawn(move || {
-            tls2.get_or(|| Box::new(2));
-            let tls3 = tls2.clone();
-            thread::spawn(move || { tls3.get_or(|| Box::new(3)); })
-                .join()
-                .unwrap();
-        }).join()
+                tls2.get_or(|| Box::new(2));
+                let tls3 = tls2.clone();
+                thread::spawn(move || {
+                        tls3.get_or(|| Box::new(3));
+                    })
+                    .join()
+                    .unwrap();
+            })
+            .join()
             .unwrap();
 
         let mut tls = Arc::try_unwrap(tls).unwrap();
