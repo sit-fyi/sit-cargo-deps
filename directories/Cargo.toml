@@ -11,14 +11,20 @@
 # will likely look very different (and much more reasonable)
 
 [package]
-name = "dirs"
-version = "1.0.2"
+name = "directories"
+version = "1.0.1"
 authors = ["Simon Ochsenreither <simon@ochsenreither.de>"]
-description = "A tiny library that provides platform-specific standard locations of directories for config, cache and other data on Linux, Windows and macOS by leveraging the mechanisms defined by the XDG base/user directory specifications on Linux, the Known Folder API on Windows, and the Standard Directory guidelines on macOS."
+description = "A tiny mid-level library that provides platform-specific standard locations of directories for config, cache and other data on Linux, Windows and macOS by leveraging the mechanisms defined by the XDG base/user directory specifications on Linux, the Known Folder API on Windows, and the Standard Directory guidelines on macOS."
 readme = "README.md"
 keywords = ["xdg", "basedir", "app_dirs", "path", "folder"]
 license = "MIT/Apache-2.0"
-repository = "https://github.com/soc/dirs-rs"
+repository = "https://github.com/soc/directories-rs"
+
+[[bench]]
+name = "constructors"
+harness = false
+[dev-dependencies.bencher]
+version = "0.1.5"
 [target."cfg(unix)".dependencies.libc]
 version = "0.2"
 [target."cfg(windows)".dependencies.winapi]
