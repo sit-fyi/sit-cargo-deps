@@ -9,7 +9,8 @@
 #ifndef BROTLI_ENC_STATIC_DICT_H_
 #define BROTLI_ENC_STATIC_DICT_H_
 
-#include "../common/types.h"
+#include "../common/dictionary.h"
+#include <brotli/types.h>
 #include "./port.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -26,10 +27,10 @@ static const uint32_t kInvalidMatch = 0xfffffff;
    Prerequisites:
      matches array is at least BROTLI_MAX_STATIC_DICTIONARY_MATCH_LEN + 1 long
      all elements are initialized to kInvalidMatch */
-BROTLI_INTERNAL int BrotliFindAllStaticDictionaryMatches(const uint8_t* data,
-                                                         size_t min_length,
-                                                         size_t max_length,
-                                                         uint32_t* matches);
+BROTLI_INTERNAL BROTLI_BOOL BrotliFindAllStaticDictionaryMatches(
+    const BrotliDictionary* dictionary,
+    const uint8_t* data, size_t min_length, size_t max_length,
+    uint32_t* matches);
 
 #if defined(__cplusplus) || defined(c_plusplus)
 }  /* extern "C" */

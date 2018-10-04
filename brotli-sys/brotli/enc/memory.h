@@ -9,7 +9,7 @@
 #ifndef BROTLI_ENC_MEMORY_H_
 #define BROTLI_ENC_MEMORY_H_
 
-#include "../common/types.h"
+#include <brotli/types.h>
 #include "./port.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
@@ -26,7 +26,7 @@ typedef struct MemoryManager {
   brotli_free_func free_func;
   void* opaque;
 #if !defined(BROTLI_ENCODER_EXIT_ON_OOM)
-  int is_oom;
+  BROTLI_BOOL is_oom;
   size_t perm_allocated;
   size_t new_allocated;
   size_t new_freed;
@@ -39,7 +39,8 @@ BROTLI_INTERNAL void BrotliInitMemoryManager(
     void* opaque);
 
 BROTLI_INTERNAL void* BrotliAllocate(MemoryManager* m, size_t n);
-#define BROTLI_ALLOC(M, T, N) ((T*)BrotliAllocate((M), (N) * sizeof(T)))
+#define BROTLI_ALLOC(M, T, N)                               \
+  ((N) ? ((T*)BrotliAllocate((M), (N) * sizeof(T))) : NULL)
 
 BROTLI_INTERNAL void BrotliFree(MemoryManager* m, void* p);
 #define BROTLI_FREE(M, P) { \

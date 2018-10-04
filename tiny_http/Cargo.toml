@@ -12,7 +12,7 @@
 
 [package]
 name = "tiny_http"
-version = "0.5.9"
+version = "0.6.0"
 authors = ["pierre.krieger1708@gmail.com", "Corey Farwell <coreyf@rwell.org>"]
 description = "Low level HTTP server library"
 documentation = "https://tiny-http.github.io/tiny-http/tiny_http/index.html"
@@ -20,10 +20,10 @@ keywords = ["http", "server", "web"]
 license = "Apache-2.0"
 repository = "https://github.com/tiny-http/tiny-http"
 [dependencies.ascii]
-version = "0.7"
+version = "0.8"
 
 [dependencies.chrono]
-version = "0.2.15"
+version = "0.4"
 
 [dependencies.chunked_transfer]
 version = "0.3"
@@ -32,19 +32,19 @@ version = "0.3"
 version = "0.2"
 
 [dependencies.log]
-version = "0.3"
+version = "0.4"
 
 [dependencies.openssl]
-version = "0.7"
+version = "0.10"
 optional = true
 
 [dependencies.url]
-version = "0.2"
+version = "1.7"
 [dev-dependencies.rustc-serialize]
 version = "0.3"
 
 [dev-dependencies.sha1]
-version = "0.2.0"
+version = "0.6.0"
 
 [features]
 default = []

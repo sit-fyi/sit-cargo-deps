@@ -11,23 +11,24 @@
 #include <string.h>  /* memset */
 
 #include "../common/constants.h"
-#include "../common/types.h"
+#include <brotli/types.h>
 #include "./port.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
 #endif
 
-int BrotliSetDepth(int p0, HuffmanTree* pool, uint8_t* depth, int max_depth) {
+BROTLI_BOOL BrotliSetDepth(
+    int p0, HuffmanTree* pool, uint8_t* depth, int max_depth) {
   int stack[16];
   int level = 0;
   int p = p0;
   assert(max_depth <= 15);
   stack[0] = -1;
-  while (1) {
+  while (BROTLI_TRUE) {
     if (pool[p].index_left_ >= 0) {
       level++;
-      if (level > max_depth) return 0;
+      if (level > max_depth) return BROTLI_FALSE;
       stack[level] = pool[p].index_right_or_value_;
       p = pool[p].index_left_;
       continue;
@@ -35,19 +36,19 @@ int BrotliSetDepth(int p0, HuffmanTree* pool, uint8_t* depth, int max_depth) {
       depth[pool[p].index_right_or_value_] = (uint8_t)level;
     }
     while (level >= 0 && stack[level] == -1) level--;
-    if (level < 0) return 1;
+    if (level < 0) return BROTLI_TRUE;
     p = stack[level];
     stack[level] = -1;
   }
 }
 
 /* Sort the root nodes, least popular first. */
-static BROTLI_INLINE int SortHuffmanTree(const HuffmanTree* v0,
-                                         const HuffmanTree* v1) {
+static BROTLI_INLINE BROTLI_BOOL SortHuffmanTree(
+    const HuffmanTree* v0, const HuffmanTree* v1) {
   if (v0->total_count_ != v1->total_count_) {
-    return (v0->total_count_ < v1->total_count_) ? 1 : 0;
+    return TO_BROTLI_BOOL(v0->total_count_ < v1->total_count_);
   }
-  return (v0->index_right_or_value_ > v1->index_right_or_value_) ? 1 : 0;
+  return TO_BROTLI_BOOL(v0->index_right_or_value_ > v1->index_right_or_value_);
 }
 
 /* This function will create a Huffman tree.
@@ -187,7 +188,7 @@ static void BrotliWriteHuffmanTreeRepetitions(
   } else {
     size_t start = *tree_size;
     repetitions -= 3;
-    while (1) {
+    while (BROTLI_TRUE) {
       tree[*tree_size] = BROTLI_REPEAT_PREVIOUS_CODE_LENGTH;
       extra_bits_data[*tree_size] = repetitions & 0x3;
       ++(*tree_size);
@@ -223,7 +224,7 @@ static void BrotliWriteHuffmanTreeRepetitionsZeros(
   } else {
     size_t start = *tree_size;
     repetitions -= 3;
-    while (1) {
+    while (BROTLI_TRUE) {
       tree[*tree_size] = BROTLI_REPEAT_ZERO_CODE_LENGTH;
       extra_bits_data[*tree_size] = repetitions & 0x7;
       ++(*tree_size);
@@ -245,7 +246,7 @@ void BrotliOptimizeHuffmanCountsForRle(size_t length, uint32_t* counts,
   size_t limit;
   size_t sum;
   const size_t streak_limit = 1240;
-  /* Let's make the Huffman code more compatible with rle encoding. */
+  /* Let's make the Huffman code more compatible with RLE encoding. */
   size_t i;
   for (i = 0; i < length; i++) {
     if (counts[i]) {
@@ -292,10 +293,10 @@ void BrotliOptimizeHuffmanCountsForRle(size_t length, uint32_t* counts,
     }
   }
   /* 2) Let's mark all population counts that already can be encoded
-     with an rle code. */
+     with an RLE code. */
   memset(good_for_rle, 0, length);
   {
-    /* Let's not spoil any of the existing good rle codes.
+    /* Let's not spoil any of the existing good RLE codes.
        Mark any seq of 0's that is longer as 5 as a good_for_rle.
        Mark any seq of non-0's that is longer as 7 as a good_for_rle. */
     uint32_t symbol = counts[0];
@@ -318,7 +319,7 @@ void BrotliOptimizeHuffmanCountsForRle(size_t length, uint32_t* counts,
       }
     }
   }
-  /* 3) Let's replace those population counts that lead to more rle codes.
+  /* 3) Let's replace those population counts that lead to more RLE codes.
      Math here is in 24.8 fixed point representation. */
   stride = 0;
   limit = 256 * (counts[0] + counts[1] + counts[2]) / 3 + 420;
@@ -370,8 +371,8 @@ void BrotliOptimizeHuffmanCountsForRle(size_t length, uint32_t* counts,
 }
 
 static void DecideOverRleUse(const uint8_t* depth, const size_t length,
-                             int *use_rle_for_non_zero,
-                             int *use_rle_for_zero) {
+                             BROTLI_BOOL *use_rle_for_non_zero,
+                             BROTLI_BOOL *use_rle_for_zero) {
   size_t total_reps_zero = 0;
   size_t total_reps_non_zero = 0;
   size_t count_reps_zero = 1;
@@ -395,8 +396,8 @@ static void DecideOverRleUse(const uint8_t* depth, const size_t length,
     i += reps;
   }
   *use_rle_for_non_zero =
-      (total_reps_non_zero > count_reps_non_zero * 2) ? 1 : 0;
-  *use_rle_for_zero = (total_reps_zero > count_reps_zero * 2) ? 1 : 0;
+      TO_BROTLI_BOOL(total_reps_non_zero > count_reps_non_zero * 2);
+  *use_rle_for_zero = TO_BROTLI_BOOL(total_reps_zero > count_reps_zero * 2);
 }
 
 void BrotliWriteHuffmanTree(const uint8_t* depth,
@@ -406,8 +407,8 @@ void BrotliWriteHuffmanTree(const uint8_t* depth,
                             uint8_t* extra_bits_data) {
   uint8_t previous_value = BROTLI_INITIAL_REPEATED_CODE_LENGTH;
   size_t i;
-  int use_rle_for_non_zero = 0;
-  int use_rle_for_zero = 0;
+  BROTLI_BOOL use_rle_for_non_zero = BROTLI_FALSE;
+  BROTLI_BOOL use_rle_for_zero = BROTLI_FALSE;
 
   /* Throw away trailing zeros. */
   size_t new_length = length;
@@ -419,15 +420,15 @@ void BrotliWriteHuffmanTree(const uint8_t* depth,
     }
   }
 
-  /* First gather statistics on if it is a good idea to do rle. */
+  /* First gather statistics on if it is a good idea to do RLE. */
   if (length > 50) {
-    /* Find rle coding for longer codes.
-       Shorter codes seem not to benefit from rle. */
+    /* Find RLE coding for longer codes.
+       Shorter codes seem not to benefit from RLE. */
     DecideOverRleUse(depth, new_length,
                      &use_rle_for_non_zero, &use_rle_for_zero);
   }
 
-  /* Actual rle coding. */
+  /* Actual RLE coding. */
   for (i = 0; i < new_length;) {
     const uint8_t value = depth[i];
     size_t reps = 1;

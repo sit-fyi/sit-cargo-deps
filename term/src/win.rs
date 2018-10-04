@@ -12,16 +12,24 @@
 
 // FIXME (#13400): this is only a tiny fraction of the Windows console api
 
-extern crate kernel32;
 extern crate winapi;
 
 use std::io::prelude::*;
 use std::io;
 use std::ptr;
-
 use Attr;
-use color;
+use Error;
+use Result;
 use Terminal;
+use color;
+
+use win::winapi::um::wincon::{SetConsoleCursorPosition, SetConsoleTextAttribute};
+use win::winapi::um::wincon::{FillConsoleOutputCharacterW, GetConsoleScreenBufferInfo, COORD};
+use win::winapi::um::wincon::FillConsoleOutputAttribute;
+use win::winapi::shared::minwindef::{DWORD, WORD};
+use win::winapi::um::handleapi::INVALID_HANDLE_VALUE;
+use win::winapi::um::fileapi::{CreateFileA, OPEN_EXISTING};
+use win::winapi::um::winnt::{FILE_SHARE_WRITE, GENERIC_READ, GENERIC_WRITE, HANDLE};
 
 /// A Terminal implementation which uses the Win32 Console API.
 pub struct WinConsole<T> {
@@ -36,15 +44,15 @@ fn color_to_bits(color: color::Color) -> u16 {
     // magic numbers from mingw-w64's wincon.h
 
     let bits = match color % 8 {
-        color::BLACK   => 0,
-        color::BLUE    => 0x1,
-        color::GREEN   => 0x2,
-        color::RED     => 0x4,
-        color::YELLOW  => 0x2 | 0x4,
+        color::BLACK => 0,
+        color::BLUE => 0x1,
+        color::GREEN => 0x2,
+        color::RED => 0x4,
+        color::YELLOW => 0x2 | 0x4,
         color::MAGENTA => 0x1 | 0x4,
-        color::CYAN    => 0x1 | 0x2,
-        color::WHITE   => 0x1 | 0x2 | 0x4,
-        _ => unreachable!()
+        color::CYAN => 0x1 | 0x2,
+        color::WHITE => 0x1 | 0x2 | 0x4,
+        _ => unreachable!(),
     };
 
     if color >= 8 {
@@ -64,27 +72,27 @@ fn bits_to_color(bits: u16) -> color::Color {
         0x5 => color::MAGENTA,
         0x3 => color::CYAN,
         0x7 => color::WHITE,
-        _ => unreachable!()
+        _ => unreachable!(),
     };
 
-    color | (bits & 0x8) // copy the hi-intensity bit
+    color | (bits as u32 & 0x8) // copy the hi-intensity bit
 }
 
 // Just get a handle to the current console buffer whatever it is
-fn conout() -> io::Result<winapi::HANDLE> {
+fn conout() -> io::Result<HANDLE> {
     let name = b"CONOUT$\0";
     let handle = unsafe {
-        kernel32::CreateFileA(
+        CreateFileA(
             name.as_ptr() as *const i8,
-            winapi::GENERIC_READ | winapi::GENERIC_WRITE,
-            winapi::FILE_SHARE_WRITE,
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_WRITE,
             ptr::null_mut(),
-            winapi::OPEN_EXISTING,
+            OPEN_EXISTING,
             0,
             ptr::null_mut(),
         )
     };
-    if handle == winapi::INVALID_HANDLE_VALUE {
+    if handle == INVALID_HANDLE_VALUE {
         Err(io::Error::last_os_error())
     } else {
         Ok(handle)
@@ -97,32 +105,32 @@ fn test_conout() {
     assert!(conout().is_ok())
 }
 
-impl<T: Write+Send> WinConsole<T> {
+impl<T: Write + Send> WinConsole<T> {
     fn apply(&mut self) -> io::Result<()> {
-        let out = try!(conout());
+        let out = conout()?;
         let _unused = self.buf.flush();
-        let mut accum: winapi::WORD = 0;
+        let mut accum: WORD = 0;
         accum |= color_to_bits(self.foreground);
         accum |= color_to_bits(self.background) << 4;
         unsafe {
-            kernel32::SetConsoleTextAttribute(out, accum);
+            SetConsoleTextAttribute(out, accum);
         }
         Ok(())
     }
 
-    /// Returns `None` whenever the terminal cannot be created for some
+    /// Returns `Err` whenever the terminal cannot be created for some
     /// reason.
     pub fn new(out: T) -> io::Result<WinConsole<T>> {
         let fg;
         let bg;
-        let handle = try!(conout());
+        let handle = conout()?;
         unsafe {
             let mut buffer_info = ::std::mem::uninitialized();
-            if kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer_info) != 0 {
+            if GetConsoleScreenBufferInfo(handle, &mut buffer_info) != 0 {
                 fg = bits_to_color(buffer_info.wAttributes);
                 bg = bits_to_color(buffer_info.wAttributes >> 4);
             } else {
-                return Err(io::Error::last_os_error())
+                return Err(io::Error::last_os_error());
             }
         }
         Ok(WinConsole {
@@ -145,36 +153,36 @@ impl<T: Write> Write for WinConsole<T> {
     }
 }
 
-impl<T: Write+Send> Terminal for WinConsole<T> {
+impl<T: Write + Send> Terminal for WinConsole<T> {
     type Output = T;
 
-    fn fg(&mut self, color: color::Color) -> io::Result<bool> {
+    fn fg(&mut self, color: color::Color) -> Result<()> {
         self.foreground = color;
-        try!(self.apply());
+        self.apply()?;
 
-        Ok(true)
+        Ok(())
     }
 
-    fn bg(&mut self, color: color::Color) -> io::Result<bool> {
+    fn bg(&mut self, color: color::Color) -> Result<()> {
         self.background = color;
-        try!(self.apply());
+        self.apply()?;
 
-        Ok(true)
+        Ok(())
     }
 
-    fn attr(&mut self, attr: Attr) -> io::Result<bool> {
+    fn attr(&mut self, attr: Attr) -> Result<()> {
         match attr {
             Attr::ForegroundColor(f) => {
                 self.foreground = f;
-                try!(self.apply());
-                Ok(true)
-            },
+                self.apply()?;
+                Ok(())
+            }
             Attr::BackgroundColor(b) => {
                 self.background = b;
-                try!(self.apply());
-                Ok(true)
-            },
-            _ => Ok(false)
+                self.apply()?;
+                Ok(())
+            }
+            _ => Err(Error::NotSupported),
         }
     }
 
@@ -183,89 +191,117 @@ impl<T: Write+Send> Terminal for WinConsole<T> {
         // it to do anything -cmr
         match attr {
             Attr::ForegroundColor(_) | Attr::BackgroundColor(_) => true,
-            _ => false
+            _ => false,
         }
     }
 
-    fn reset(&mut self) -> io::Result<bool> {
+    fn reset(&mut self) -> Result<()> {
         self.foreground = self.def_foreground;
         self.background = self.def_background;
-        try!(self.apply());
+        self.apply()?;
 
-        Ok(true)
+        Ok(())
     }
 
-    fn cursor_up(&mut self) -> io::Result<bool> {
+    fn supports_reset(&self) -> bool {
+        true
+    }
+
+    fn supports_color(&self) -> bool {
+        true
+    }
+
+    fn cursor_up(&mut self) -> Result<()> {
         let _unused = self.buf.flush();
-        let handle = try!(conout());
+        let handle = conout()?;
         unsafe {
             let mut buffer_info = ::std::mem::uninitialized();
-            if kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer_info) != 0 {
-                let (x, y) = (buffer_info.dwCursorPosition.X, buffer_info.dwCursorPosition.Y);
+            if GetConsoleScreenBufferInfo(handle, &mut buffer_info) != 0 {
+                let (x, y) = (
+                    buffer_info.dwCursorPosition.X,
+                    buffer_info.dwCursorPosition.Y,
+                );
                 if y == 0 {
-                    Ok(false)
+                    // Even though this might want to be a CursorPositionInvalid, on Unix there
+                    // is no checking to see if the cursor is already on the first line.
+                    // I'm not sure what the ideal behavior is, but I think it'd be silly to have
+                    // cursor_up fail in this case.
+                    Ok(())
                 } else {
-                    let pos = winapi::COORD { X: x, Y: y - 1 };
-                    if kernel32::SetConsoleCursorPosition(handle, pos) != 0 {
-                        Ok(true)
+                    let pos = COORD { X: x, Y: y - 1 };
+                    if SetConsoleCursorPosition(handle, pos) != 0 {
+                        Ok(())
                     } else {
-                        Err(io::Error::last_os_error())
+                        Err(io::Error::last_os_error().into())
                     }
                 }
             } else {
-                Err(io::Error::last_os_error())
+                Err(io::Error::last_os_error().into())
             }
         }
     }
 
-    fn delete_line(&mut self) -> io::Result<bool> {
+    fn delete_line(&mut self) -> Result<()> {
         let _unused = self.buf.flush();
-        let handle = try!(conout());
+        let handle = conout()?;
         unsafe {
             let mut buffer_info = ::std::mem::uninitialized();
-            if kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer_info) == 0 {
-                return Err(io::Error::last_os_error())
+            if GetConsoleScreenBufferInfo(handle, &mut buffer_info) == 0 {
+                return Err(io::Error::last_os_error().into());
             }
             let pos = buffer_info.dwCursorPosition;
             let size = buffer_info.dwSize;
-            let num = (size.X - pos.X) as winapi::DWORD;
+            let num = (size.X - pos.X) as DWORD;
             let mut written = 0;
-            if kernel32::FillConsoleOutputCharacterW(handle, 0, num, pos, &mut written) == 0 {
-                return Err(io::Error::last_os_error())
+            // 0x0020u16 is ' ' (space) in UTF-16 (same as ascii)
+            if FillConsoleOutputCharacterW(handle, 0x0020, num, pos, &mut written) == 0 {
+                return Err(io::Error::last_os_error().into());
             }
-            if kernel32::FillConsoleOutputAttribute(handle, 0, num, pos, &mut written) == 0 {
-                return Err(io::Error::last_os_error())
+            if FillConsoleOutputAttribute(handle, 0, num, pos, &mut written) == 0 {
+                return Err(io::Error::last_os_error().into());
             }
-            Ok(written != 0)
+            // Similar reasoning for not failing as in cursor_up -- it doesn't even make
+            // sense to
+            // me that these APIs could have written 0, unless the terminal is width zero.
+            Ok(())
         }
     }
 
-    fn carriage_return(&mut self) -> io::Result<bool> {
+    fn carriage_return(&mut self) -> Result<()> {
         let _unused = self.buf.flush();
-        let handle = try!(conout());
+        let handle = conout()?;
         unsafe {
             let mut buffer_info = ::std::mem::uninitialized();
-            if kernel32::GetConsoleScreenBufferInfo(handle, &mut buffer_info) != 0 {
-                let (x, y) = (buffer_info.dwCursorPosition.X, buffer_info.dwCursorPosition.Y);
+            if GetConsoleScreenBufferInfo(handle, &mut buffer_info) != 0 {
+                let COORD { X: x, Y: y } = buffer_info.dwCursorPosition;
                 if x == 0 {
-                    Ok(false)
+                    Err(Error::CursorDestinationInvalid)
                 } else {
-                    let pos = winapi::COORD { X: 0, Y: y };
-                    if kernel32::SetConsoleCursorPosition(handle, pos) != 0 {
-                        Ok(true)
+                    let pos = COORD { X: 0, Y: y };
+                    if SetConsoleCursorPosition(handle, pos) != 0 {
+                        Ok(())
                     } else {
-                        Err(io::Error::last_os_error())
+                        Err(io::Error::last_os_error().into())
                     }
                 }
             } else {
-                Err(io::Error::last_os_error())
+                Err(io::Error::last_os_error().into())
             }
         }
     }
 
-    fn get_ref<'a>(&'a self) -> &'a T { &self.buf }
+    fn get_ref<'a>(&'a self) -> &'a T {
+        &self.buf
+    }
 
-    fn get_mut<'a>(&'a mut self) -> &'a mut T { &mut self.buf }
+    fn get_mut<'a>(&'a mut self) -> &'a mut T {
+        &mut self.buf
+    }
 
-    fn into_inner(self) -> T where Self: Sized { self.buf }
+    fn into_inner(self) -> T
+    where
+        Self: Sized,
+    {
+        self.buf
+    }
 }

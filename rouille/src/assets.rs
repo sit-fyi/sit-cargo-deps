@@ -121,9 +121,9 @@ pub fn match_assets<P: ?Sized>(request: &Request, path: &P) -> Response
     };
 
     let etag: String = (fs::metadata(&potential_file)
-        .map(|meta| filetime::FileTime::from_last_modification_time(&meta).seconds_relative_to_1970())
+        .map(|meta| filetime::FileTime::from_last_modification_time(&meta).unix_seconds() as u64)
         .unwrap_or(time::now().tm_nsec as u64)
-        ^ 0xd3f40305c9f8e911u64).to_string();
+        ^ 0xd3f4_0305_c9f8_e911_u64).to_string();
 
     Response::from_file(extension_to_mime_impl(extension), file)
         .with_etag(request, etag)

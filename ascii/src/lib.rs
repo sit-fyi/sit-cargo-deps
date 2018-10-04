@@ -8,35 +8,40 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-//! A library that provides ASCII-only string and character types, equivalent to the `char`, `str` and
-//! `String` types in the standard library.
+//! A library that provides ASCII-only string and character types, equivalent to the `char`, `str`
+//! and `String` types in the standard library.
 //!
-//! # Using ascii without libstd
-//!
-//! Most of `AsciiChar` and `AsciiStr` can be used without `std` by enabling the feature `no_std`. The
-//! owned string type `AsciiString` and the conversion trait `IntoAsciiString` as well as all methods
-//! referring to these types aren't available without `std`.
+#![cfg_attr(feature = "std", doc="[The documentation for the `core` mode is here](https://tomprogrammer.github.io/rust-ascii/core/ascii/index.html).")]
+#![cfg_attr(not(feature = "std"), doc="This is the documentation for `core` mode.")]
+//! Please refer to the readme file to learn about the different feature modes of this crate.
 //!
 //! # Requirements
 //!
-//! The `ascii` library requires rustc 1.9.0 or greater, due to the [stabilization of
-//! `AsciiExt`](https://github.com/rust-lang/rust/pull/32804). Using the `no_std` feature lowers
-//! this requirement to rustc 1.6.0 or greater.
+//! The minimum supported Rust version is 1.9.0.
+//! Enabling the quickcheck integration requires Rust 1.12.0.
 //!
 //! # History
 //!
-//! This packages included the Ascii types that were removed from the Rust standard library by the
+//! This package included the Ascii types that were removed from the Rust standard library by the
 //! 2014-12 [reform of the `std::ascii` module](https://github.com/rust-lang/rfcs/pull/486). The
 //! API changed significantly since then.
 
-#![cfg_attr(feature = "no_std", no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "std")]
+extern crate core;
+
+#[cfg(feature = "quickcheck")]
+extern crate quickcheck;
+
+mod free_functions;
 mod ascii_char;
 mod ascii_str;
-#[cfg(not(feature = "no_std"))]
+#[cfg(feature = "std")]
 mod ascii_string;
 
+pub use free_functions::{caret_encode, caret_decode};
 pub use ascii_char::{AsciiChar, ToAsciiChar, ToAsciiCharError};
-pub use ascii_str::{AsciiStr, AsAsciiStr, AsMutAsciiStr, AsAsciiStrError};
-#[cfg(not(feature = "no_std"))]
-pub use ascii_string::{AsciiString, IntoAsciiString};
+pub use ascii_str::{AsciiStr, AsAsciiStr, AsMutAsciiStr, AsAsciiStrError, Chars, CharsMut, Lines};
+#[cfg(feature = "std")]
+pub use ascii_string::{AsciiString, IntoAsciiString, FromAsciiError};

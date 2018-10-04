@@ -9,10 +9,11 @@
 #ifndef BROTLI_ENC_BLOCK_SPLITTER_H_
 #define BROTLI_ENC_BLOCK_SPLITTER_H_
 
-#include "../common/types.h"
+#include <brotli/types.h>
 #include "./command.h"
 #include "./memory.h"
 #include "./port.h"
+#include "./quality.h"
 
 #if defined(__cplusplus) || defined(c_plusplus)
 extern "C" {
@@ -38,7 +39,7 @@ BROTLI_INTERNAL void BrotliSplitBlock(MemoryManager* m,
                                       const uint8_t* data,
                                       const size_t offset,
                                       const size_t mask,
-                                      const int quality,
+                                      const BrotliEncoderParams* params,
                                       BlockSplit* literal_split,
                                       BlockSplit* insert_and_copy_split,
                                       BlockSplit* dist_split);
